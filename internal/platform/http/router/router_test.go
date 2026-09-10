@@ -1,5 +1,3 @@
-// --- FILE service.https ---
-
 package router
 
 import (
@@ -9,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"sprout/internal/app"
-	"sprout/internal/build"
-	"sprout/internal/platform/database"
-	"sprout/internal/ui"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/platform/database"
+	"github.com/Data-Corruption/Servo/internal/ui"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 )
 
 func newRouterTestApp(t *testing.T) *app.App {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"syscall"
 
-	"sprout/pkg/xsyscall"
+	"github.com/Data-Corruption/Servo/pkg/xsyscall"
 )
 
 func openStateFile(path string) (*os.File, error) {

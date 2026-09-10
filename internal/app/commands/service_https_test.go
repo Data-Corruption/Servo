@@ -1,5 +1,3 @@
-// --- FILE service.https ---
-
 package commands
 
 import (
@@ -11,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/app"
-	"sprout/internal/build"
-	"sprout/internal/layout"
-	"sprout/internal/platform/database"
-	"sprout/internal/platform/database/config"
-	"sprout/internal/types"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/layout"
+	"github.com/Data-Corruption/Servo/internal/platform/database"
+	"github.com/Data-Corruption/Servo/internal/platform/database/config"
+	"github.com/Data-Corruption/Servo/internal/types"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 
 	"github.com/urfave/cli/v3"
 )

@@ -26,10 +26,6 @@
 # out/lifecycle-e2e-logs/<run>/. KEEP_FAILED retains failed/incomplete instances
 # (including the active instance if the harness is interrupted) and prints the
 # associated Incus name and temporary harness path for later inspection.
-# --- BEGIN template ---
-# The default locally built run also cuts and exercises focused no-update,
-# no-service, and headless-service installers once on Debian.
-# --- END template ---
 #
 # Requires a locally initialized Incus daemon. The caller needs access through
 # incus-admin (root-equivalent) or passwordless sudo. First run pulls
@@ -63,18 +59,8 @@ SKIP_FAKES=false
 TEST_EXAMPLE_HASH="false"
 # The retained assignments are ordered fallbacks for finalized source shapes.
 SCENARIO="no-service"
-# --- BEGIN service ---
 SCENARIO="headless"
-# --- BEGIN service.https ---
 SCENARIO="default"
-# --- END service.https ---
-# --- END service ---
-# --- BEGIN template ---
-FOCUSED_ROOT=""
-# --- BEGIN service ---
-TEST_EXAMPLE_HASH="true" # upstream true, clone default to false so they don't need to edit this manually.
-# --- END service ---
-# --- END template ---
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -376,9 +362,6 @@ cleanup() {
   else
     echo ">> Preserved harness files: $HARNESS_DIR" >&2
   fi
-  # --- BEGIN template ---
-  [[ -z "$FOCUSED_ROOT" ]] || rm -rf "$FOCUSED_ROOT"
-  # --- END template ---
 }
 trap cleanup EXIT
 cat > "$PIN_CURL" <<'EOF'
@@ -1298,51 +1281,6 @@ if [[ -n "$failed" ]]; then
   exit 1
 fi
 
-# --- BEGIN template ---
-if [[ -z "$requested_release_dir" && "$SCENARIO" == "default" ]]; then
-  command -v tar >/dev/null 2>&1 || {
-    echo "error: tar is required to prepare focused installer source variants" >&2
-    exit 1
-  }
-  FOCUSED_ROOT=$(mktemp -d)
-  focused_names=(no-update no-service headless)
-  focused_cuts=(update service service.https)
-  for i in "${!focused_names[@]}"; do
-    name=${focused_names[$i]}
-    cuts=${focused_cuts[$i]}
-    source_dir="$FOCUSED_ROOT/$name"
-    mkdir -p "$source_dir"
-    tar \
-      --exclude='./.git' \
-      --exclude='./out' \
-      --exclude='./tools' \
-      --exclude='./node_modules' \
-      --exclude='./docs/resources/_gen' \
-      -cf - . | (cd "$source_dir" && tar -xf -)
-
-    echo ""
-    echo "=============================================================="
-    echo ">> Preparing focused $name installer (cut args: $cuts)"
-    echo "=============================================================="
-    if ! (
-      cd "$source_dir" &&
-      ./scripts/cut --finalize \
-        --module "example.com/sprout-focused/$name" "$cuts" &&
-      bash scripts/test-lifecycle-e2e.sh \
-        --scenario "$name" \
-        --distros "debian" \
-        --no-fakes
-    ); then
-      echo "error: focused installer $name failed (cut args: $cuts)" >&2
-      echo "retained source: $source_dir" >&2
-      FOCUSED_ROOT=""
-      exit 1
-    fi
-  done
-  rm -rf "$FOCUSED_ROOT"
-  FOCUSED_ROOT=""
-fi
-# --- END template ---
 
 printf 'All lifecycle E2E tests passed (scenario: %s; distros: %s).\n' \
   "$SCENARIO" "$DISTROS"

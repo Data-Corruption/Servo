@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"sprout/internal/layout"
+	"github.com/Data-Corruption/Servo/internal/layout"
 )
 
 const statePollInterval = 250 * time.Millisecond

@@ -54,7 +54,7 @@ import (
 	"sync"
 	"time"
 
-	"sprout/pkg/xsyscall"
+	"github.com/Data-Corruption/Servo/pkg/xsyscall"
 )
 
 const (

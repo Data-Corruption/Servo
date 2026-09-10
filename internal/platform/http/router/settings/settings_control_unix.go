@@ -1,14 +1,13 @@
 //go:build !windows
 
-// --- FILE service.https ---
-
 package settings
 
 import (
 	"fmt"
 	"os/exec"
-	"sprout/internal/app"
 	"time"
+
+	"github.com/Data-Corruption/Servo/internal/app"
 )
 
 // requestServiceStop stops the managed service via a transient systemd unit

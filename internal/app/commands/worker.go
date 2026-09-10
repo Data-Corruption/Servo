@@ -1,5 +1,3 @@
-// --- FILE service ---
-
 package commands
 
 import (
@@ -9,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"sprout/internal/app"
-	"sprout/internal/platform/database/hashrequests"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/platform/database/hashrequests"
 )
 
 const (

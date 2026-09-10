@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"sprout/internal/layout"
-	"sprout/pkg/xsyscall"
+	"github.com/Data-Corruption/Servo/internal/layout"
+	"github.com/Data-Corruption/Servo/pkg/xsyscall"
 )
 
 var ErrServiceAlreadyRunning = errors.New("service already running")

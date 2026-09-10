@@ -1,5 +1,3 @@
-// --- FILE service ---
-
 package commands
 
 import (
@@ -10,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/app"
-	"sprout/internal/build"
-	"sprout/internal/platform/database"
-	"sprout/internal/platform/database/hashrequests"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/platform/database"
+	"github.com/Data-Corruption/Servo/internal/platform/database/hashrequests"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 )
 
 func TestRunWorkerHashesRequest(t *testing.T) {

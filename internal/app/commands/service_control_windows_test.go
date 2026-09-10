@@ -1,7 +1,5 @@
 //go:build windows
 
-// --- FILE service ---
-
 package commands
 
 import (
@@ -11,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/app"
-	"sprout/internal/build"
-	"sprout/internal/layout"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/layout"
 )
 
 func TestStopWindowsServiceAlreadyStopped(t *testing.T) {

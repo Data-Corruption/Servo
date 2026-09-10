@@ -1,7 +1,5 @@
 //go:build windows
 
-// --- FILE service.https ---
-
 package commands
 
 import (
@@ -9,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/app"
-	"sprout/internal/platform/database/config"
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/platform/database/config"
 )
 
 func TestRunServiceHonorsStopLeaseBeforeReadiness(t *testing.T) {

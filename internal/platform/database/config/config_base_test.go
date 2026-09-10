@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sprout/internal/build"
-	"sprout/internal/platform/database"
-	"sprout/internal/types"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/platform/database"
+	"github.com/Data-Corruption/Servo/internal/types"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 )
 
 func TestUpdateNormalizesAndValidatesBaseLogLevel(t *testing.T) {

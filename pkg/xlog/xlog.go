@@ -38,7 +38,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"sprout/pkg/xlog/rlog"
+	"github.com/Data-Corruption/Servo/pkg/xlog/rlog"
 )
 
 var (

@@ -1,18 +1,17 @@
-// --- FILE service.https ---
-
 package commands
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sprout/internal/app"
-	"sprout/internal/platform/database/config"
-	"sprout/internal/platform/database/sessions"
-	"sprout/internal/types"
-	"sprout/pkg/crypto"
-	"sprout/pkg/xterm/prompt"
 	"strings"
+
+	"github.com/Data-Corruption/Servo/internal/app"
+	"github.com/Data-Corruption/Servo/internal/platform/database/config"
+	"github.com/Data-Corruption/Servo/internal/platform/database/sessions"
+	"github.com/Data-Corruption/Servo/internal/types"
+	"github.com/Data-Corruption/Servo/pkg/crypto"
+	"github.com/Data-Corruption/Servo/pkg/xterm/prompt"
 
 	"github.com/urfave/cli/v3"
 )

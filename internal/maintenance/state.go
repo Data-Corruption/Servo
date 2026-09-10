@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"sprout/internal/layout"
+	"github.com/Data-Corruption/Servo/internal/layout"
 
 	"golang.org/x/mod/semver"
 )

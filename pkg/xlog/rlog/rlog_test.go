@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"sprout/pkg/xsyscall"
+	"github.com/Data-Corruption/Servo/pkg/xsyscall"
 )
 
 // --- constructor -----------------------------------------------------------

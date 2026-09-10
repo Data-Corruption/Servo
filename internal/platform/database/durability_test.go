@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/build"
-	"sprout/internal/types"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/types"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 )
 
 const concurrentDatabaseHelperEnv = "SPROUT_DATABASE_INIT_HELPER"

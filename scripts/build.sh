@@ -67,18 +67,14 @@ SERVICE_DEFAULT_PORT="0" # fallback for after cut
 # Template adopters normally change values in this section and leave the build
 # implementation alone.
 
-APP_NAME="sprout"
+APP_NAME="servo"
 # The URL path is also the publication prefix inside R2_BUCKET. End with /.
-RELEASE_URL="https://releases.sproutcli.dev/"
-CONTACT_URL="https://sproutcli.dev/"
+RELEASE_URL="https://releav/servo/"
+CONTACT_URL="https://github.com/Data-Corruption/Servo"
 DEFAULT_LOG_LEVEL="warn"
 
-# --- BEGIN service ---
-SERVICE_DESC="Sprout daemon"
-# --- END service ---
-# --- BEGIN service.https ---
-SERVICE_DEFAULT_PORT="8484"
-# --- END service.https ---
+SERVICE_DESC="servo service"
+SERVICE_DEFAULT_PORT="8829"
 
 # Pinned build inputs ---------------------------------------------------------
 #
@@ -94,11 +90,9 @@ source "$BUILD_SCRIPT_DIR/vendor.sh"
 
 OUT_DIR="out"
 RELEASE_DIR="$OUT_DIR/release"
-# --- BEGIN service.https ---
 JS_DIR="./internal/ui/assets/js"
 CSS_DIR="./internal/ui/assets/css"
 ASSETS_DIR="./internal/ui/assets"
-# --- END service.https ---
 GO_MAIN_PATH="./cmd"
 
 NO_CACHE='Cache-Control: no-store, max-age=0, must-revalidate' # unneeded with cache rule but just in case
@@ -130,10 +124,8 @@ RELEASE_TAG_ONLY=false
 
 SERVICE_ENABLED="false"
 SERVICE_ARGS=""
-# --- BEGIN service ---
 SERVICE_ENABLED="true"
 SERVICE_ARGS="service run"
-# --- END service ---
 
 # cosign keyless identity: only releases signed by this exact workflow on main
 # verify. The subject includes the repository, so it is unforgeable without push
@@ -189,10 +181,8 @@ finish_tag_only_retry() {
 
 build_candidate_if_needed() {
   if $RELEASE_BUILD_REQUIRED; then
-    # --- BEGIN service.https ---
     frontend_build
     frontend_hash_assets
-    # --- END service.https ---
     if [[ "$BUILD_KIND" == "dev" ]]; then
       printf "🟢 Skipping tests in dev mode\n"
     else

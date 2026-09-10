@@ -1,5 +1,3 @@
-// --- FILE service.https ---
-
 package sessions
 
 import (
@@ -8,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"sprout/internal/build"
-	"sprout/internal/platform/database"
-	"sprout/pkg/xlog"
+	"github.com/Data-Corruption/Servo/internal/build"
+	"github.com/Data-Corruption/Servo/internal/platform/database"
+	"github.com/Data-Corruption/Servo/pkg/xlog"
 )
 
 func newSessionTestDB(t *testing.T) *sql.DB {

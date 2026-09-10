@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"sprout/pkg/xsyscall"
+	"github.com/Data-Corruption/Servo/pkg/xsyscall"
 )
 
 func TestNormalGuardHoldsLifecycleLockAndMarker(t *testing.T) {
