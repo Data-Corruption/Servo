@@ -1,7 +1,7 @@
 ---
 title: Use Servo
 linkTitle: Use Servo
-description: Dedicated game server manager, friend group sized. Install it, add a driver, and let your friends handle the restart button.
+description: Dedicated game server manager, friend group sized. Install it, add a driver, and play.
 number: "01"
 ---
 
