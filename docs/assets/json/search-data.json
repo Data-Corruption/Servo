@@ -1,0 +1,9 @@
+{{/* The operator guide lives at /, so index home alongside the two deep dives. */}}
+{{- $output := dict -}}
+{{- range where .Site.Pages "Kind" "in" (slice "home" "page") -}}
+  {{- if and (ne .Params.excludeSearch true) (ne .Content "") -}}
+    {{- $data := partial "utils/fragments" (dict "context" . "type" "content") -}}
+    {{- $output = $output | merge (dict .RelPermalink (dict "title" .LinkTitle "data" $data)) -}}
+  {{- end -}}
+{{- end -}}
+{{- $output | jsonify -}}

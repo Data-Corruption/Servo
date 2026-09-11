@@ -5,8 +5,7 @@ application participates by holding a lifecycle lease while it runs, recording
 an instance marker, checking for updates, and admitting a verified installer as
 a detached maintenance job. It does not modify its own installation.
 
-There is intentionally no compatibility migration for older layouts. Sprout is
-a starter template, and the layout below is the only supported layout.
+There is intentionally no compatibility migration for older layouts. Servo is a fresh rebuild on Sprout; the layout below is the only supported layout.
 
 ## Paths
 
@@ -16,7 +15,11 @@ The storage root is `~/.<app>` on Linux and
 
 ```text
 <storage>/
+  drivers/                  # retained driver executables
+  driver-data/<driver>/     # retained game data
+  backups/<driver>/         # retained archives
   data/
+    backgrounds/
     db/
     secrets/
     tmp/
@@ -292,3 +295,9 @@ above: one storage root, `control/state.json` as the only durable lifecycle
 record, lifecycle coordination in `internal/maintenance`, and install, update,
 and uninstall as one script-owned transaction model with detached admission and
 retained recovery artifacts.
+
+## Servo game runtime
+
+The service owns the operation runner, scheduler and background status poller. They obey the service context, cancel driver subprocesses, and join before SQLite closes. The current/latest operation is durable; unfinished work becomes interrupted on the next service start and is never resumed. No recovery starts follow failed steps.
+
+Uninstalling Servo removes its `data/` tree, including database, sessions and backgrounds. It preserves `drivers/`, `driver-data/`, and `backups/`. Explicit game uninstall invokes the driver's teardown and removes its own data only after success. It does not change the Servo installation. An independently hosted idle game is not stopped by Servo maintenance.

@@ -3,8 +3,11 @@ package config
 import (
 	"fmt"
 	"net"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Data-Corruption/Servo/internal/types"
 	"github.com/Data-Corruption/Servo/pkg/xlog"
@@ -40,6 +43,29 @@ func (e *ValidationError) Unwrap() []error {
 // surface as a failed listen on the next start.
 func validate(cfg *types.Configuration) error {
 	var errs []error
+	if _, err := time.Parse("15:04", cfg.RestartTime); err != nil {
+		errs = append(errs, fmt.Errorf("restart time must be HH:MM"))
+	}
+	if cfg.BackupRetention < 0 {
+		errs = append(errs, fmt.Errorf("backup retention must be nonnegative"))
+	}
+	if cfg.NotifyLeadMinutes < 0 || cfg.NotifyLeadMinutes > 720 {
+		errs = append(errs, fmt.Errorf("notify lead must be 0–720 minutes"))
+	}
+	if cfg.BackgroundBlur < 0 || cfg.BackgroundBlur > 30 {
+		errs = append(errs, fmt.Errorf("blur must be 0–30 pixels"))
+	}
+	if cfg.ForcedTheme != "" && !slices.Contains(types.Themes, cfg.ForcedTheme) {
+		errs = append(errs, fmt.Errorf("unknown theme"))
+	}
+	if !slices.Contains([]string{"", "left", "center", "right"}, cfg.ContentAlign) {
+		errs = append(errs, fmt.Errorf("invalid alignment"))
+	}
+	for _, name := range []string{cfg.ActiveDriver, cfg.LoginBackground, cfg.DashboardBackground} {
+		if name != "" && (name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\:`)) {
+			errs = append(errs, fmt.Errorf("invalid file name"))
+		}
+	}
 
 	if _, err := xlog.NormalizeLevel(cfg.LogLevel); err != nil {
 		errs = append(errs, err)

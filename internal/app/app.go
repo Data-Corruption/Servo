@@ -14,6 +14,7 @@ import (
 	"github.com/Data-Corruption/Servo/internal/build"
 	"github.com/Data-Corruption/Servo/internal/layout"
 	"github.com/Data-Corruption/Servo/internal/maintenance"
+	"github.com/Data-Corruption/Servo/internal/ops"
 	"github.com/Data-Corruption/Servo/internal/platform/database"
 	"github.com/Data-Corruption/Servo/internal/platform/database/config"
 
@@ -35,8 +36,11 @@ type CleanupFunc func() error
 // App is the process composition root. Filesystem policy and cross-process
 // install/update/uninstall coordination are in layout and maintenance.
 type App struct {
-	DB  *sql.DB
-	Log *xlog.Logger
+	Ops    *ops.Runner
+	Poller *ops.Poller
+	Sched  *ops.Scheduler
+	DB     *sql.DB
+	Log    *xlog.Logger
 
 	Server      *xhttp.Server
 	ProxyServer *xhttp.Server

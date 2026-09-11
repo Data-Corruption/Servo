@@ -5,10 +5,51 @@
 @source not "../../../../tools";
 
 @plugin "../../../../tools/daisyui.mjs" {
-    themes: nord --default, forest --prefersdark;
+    themes: all;
 }
 
 /* Optional for custom themes – Docs: https://daisyui.com/docs/themes/#how-to-add-a-new-custom-theme */
 @plugin "../../../../tools/daisyui-theme.mjs" {
     /* custom theme here */
 }
+
+p.label { white-space: normal; display: block; }
+.servo-background { position: fixed; inset: 0; background-size: cover; background-position: center; pointer-events: none; transform: scale(1.06); }
+.servo-background-login { background-image: url('/bg/login'); }
+.servo-background-dashboard { background-image: url('/bg/dashboard'); }
+@media (min-width: 1024px) { .servo-align-left { justify-content: flex-start; } .servo-align-right { justify-content: flex-end; } }
+.servo-blur-0 { filter: blur(0px); }
+.servo-blur-1 { filter: blur(1px); }
+.servo-blur-2 { filter: blur(2px); }
+.servo-blur-3 { filter: blur(3px); }
+.servo-blur-4 { filter: blur(4px); }
+.servo-blur-5 { filter: blur(5px); }
+.servo-blur-6 { filter: blur(6px); }
+.servo-blur-7 { filter: blur(7px); }
+.servo-blur-8 { filter: blur(8px); }
+.servo-blur-9 { filter: blur(9px); }
+.servo-blur-10 { filter: blur(10px); }
+.servo-blur-11 { filter: blur(11px); }
+.servo-blur-12 { filter: blur(12px); }
+.servo-blur-13 { filter: blur(13px); }
+.servo-blur-14 { filter: blur(14px); }
+.servo-blur-15 { filter: blur(15px); }
+.servo-blur-16 { filter: blur(16px); }
+.servo-blur-17 { filter: blur(17px); }
+.servo-blur-18 { filter: blur(18px); }
+.servo-blur-19 { filter: blur(19px); }
+.servo-blur-20 { filter: blur(20px); }
+.servo-blur-21 { filter: blur(21px); }
+.servo-blur-22 { filter: blur(22px); }
+.servo-blur-23 { filter: blur(23px); }
+.servo-blur-24 { filter: blur(24px); }
+.servo-blur-25 { filter: blur(25px); }
+.servo-blur-26 { filter: blur(26px); }
+.servo-blur-27 { filter: blur(27px); }
+.servo-blur-28 { filter: blur(28px); }
+.servo-blur-29 { filter: blur(29px); }
+.servo-blur-30 { filter: blur(30px); }
+
+.label { white-space: normal; }
+.label > div:first-child { min-width: 0; }
+.label > .flex { flex-shrink: 0; }

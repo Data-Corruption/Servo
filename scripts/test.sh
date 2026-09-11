@@ -78,6 +78,8 @@ run_shell_lint() {
     scripts/test-release.sh
     scripts/test-lifecycle-e2e.sh
     scripts/install.sh
+    drivers/driver.template.sh
+    drivers/fedora-palworld.sh
   )
   "$shellcheck_bin" --external-sources --source-path=scripts --source-path=scripts/build "${scripts[@]}"
   printf '🟢 shellcheck passed (%d scripts)\n' "${#scripts[@]}"

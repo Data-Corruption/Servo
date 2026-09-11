@@ -128,3 +128,19 @@ export function showDialog({
 
     modal.showModal();
 }
+
+export function confirmAction(title, message, onConfirm, tone = 'btn-primary') {
+    showDialog({ title, message, onConfirm, onCancel: () => {}, confirmLabel: 'Confirm', tone: tone === 'btn-error' ? 'error' : 'warning' });
+}
+let bannerTimer;
+export function showBanner(tone, message, duration = 5000) {
+    const el = document.getElementById('dashboard-banner');
+    const text = document.getElementById('dashboard-banner-message');
+    if (!el || !text) return;
+    text.textContent = message;
+    el.className = `alert ${{success:'alert-success',error:'alert-error',info:'alert-info'}[tone] || 'alert-info'}`;
+    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => el.classList.add('hidden'), duration);
+}
+export async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}

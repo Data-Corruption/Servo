@@ -2,7 +2,7 @@
 // Assets-only (no worker script); deployed by .github/workflows/docs.yml.
 // See DEPLOYMENT.md for the one-time Cloudflare setup.
 {
-	"name": "sprout-docs",
+	"name": "servo-docs",
 	"compatibility_date": "2026-07-01",
 	"assets": {
 		"directory": "./out",

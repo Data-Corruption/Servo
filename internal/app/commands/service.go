@@ -85,6 +85,9 @@ func serviceCommand(a *app.App) *cli.Command {
 					}
 					a.UI = dashboardUI
 
+					if err := a.InitGame(ctx); err != nil {
+						return fmt.Errorf("initialize game runtime: %w", err)
+					}
 					mux := router.New(a)
 					httpReady := make(chan struct{}, 1)
 					if err := server.New(ctx, a, serviceConfig, mux, func() { httpReady <- struct{}{} }); err != nil {

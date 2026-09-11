@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" fill="none" aria-hidden="true">
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" stroke="#252d28" stroke-width=".6"/></pattern></defs>
+<path fill="url(#grid)" d="M20 20h280v280H20z"/>
+<g stroke="#57674f"><path d="M20 46V20h26m228 0h26v26M20 274v26h26m228 0h26v-26"/><path d="M160 6v24m0 260v24M6 160h24m260 0h24"/></g>
+<path d="M160 48 272 160 160 272 48 160Z" stroke="#3d493a" stroke-dasharray="2 6"/>
+<path d="M46 210H30v54h70m174-154h16V56h-70" stroke="#5b7050"/>
+<g fill="#c5f277" shape-rendering="crispEdges">
+<path d="M144 128h32v64h-32zM80 136h48v48H80zM192 136h48v48h-48z" fill="#182415" stroke="#c5f277" stroke-width="2"/>
+<path d="M128 152h16v8h-16zm48 0h16v8h-16zm-20-48h8v24h-8zm-16-8h40v8h-40zm16 96h8v16h-8z"/>
+<path d="M88 144h12v12H88zm20 0h12v12h-12zm-20 20h12v12H88zm20 0h12v12h-12zm92-20h12v12h-12zm20 0h12v12h-12zm-20 20h12v12h-12zm20 0h12v12h-12z" fill="#5a7545"/>
+<path d="M152 140h16v4h-16zm0 12h16v4h-16zm0 12h16v4h-16z"/>
+<path d="M188 70h6v6h-6zm8 8h6v6h-6zm8 8h6v6h-6zm-6-34h6v6h-6zm8 8h6v6h-6zm8 8h6v6h-6zm8 8h6v6h-6z" fill="#89cbbd"/>
+<path d="M40 224h6v6h-6zm194-182h6v6h-6zm42 224h6v6h-6z"/>
+</g><path d="M210 152h30m-92 17h24" stroke="#89cbbd" stroke-width="2"/>
+<g fill="#82907c" font-family="monospace" font-size="8" letter-spacing="1"><text x="28" y="38">S / 01</text><text x="245" y="290">SERVO</text><text x="28" y="290">+ + +</text></g></svg>

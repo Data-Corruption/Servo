@@ -1,63 +1,52 @@
-# Sprout docs site
+# Servo documentation
 
-Public documentation for Sprout, built with [Hugo](https://gohugo.io/) and
-[Hextra](https://imfing.github.io/hextra/). This in-repository site is the
-current public surface. Moving presentation to its own repository and mirroring
-canonical source-adjacent docs into it is deliberately later work.
+The public site targets end-users and has three pages: [Use Servo](content/_index.md),
+[Caddy](content/caddy.md), and [Drivers](content/drivers.md). Caddy setup and driver
+authoring are the only deep dives. Use the practical, conversational voice of the
+project README and `local/` references, while checking behavior against current code.
+`local/` is historical material and is not published.
 
-## Local development
+Repository-only reference:
 
-Install Go at the version declared in `go.mod` and the extended edition of
-Hugo. CI pins Hugo 0.164.0; Hextra requires Hugo Extended 0.146.0 or newer.
-See Hugo's [Linux installation
-guide](https://gohugo.io/installation/linux/) for installation options.
+- [Development and tests](DEVELOPMENT.md)
+- [Architecture](ARCHITECTURE.md)
+- [Installer maintenance protocol](MAINTENANCE.md)
+- [Releases](RELEASES.md)
+- [Docs deployment](DEPLOYMENT.md)
+- [Icebox](ICEBOX.md)
+
+## Build the site
+
+From the repository root, fetch the pinned Hugo executable and use the returned path:
 
 ```sh
+hugo_bin=$(./scripts/vendor.sh hugo | sed -n 's/^hugo=//p')
 cd docs
 go mod download
-hugo server --buildDrafts --disableFastRender
-```
-
-The landing page is `content/_index.md`. Public documentation lives under
-`content/docs/`; directory structure and front-matter weights define the
-Hextra sidebar. Site configuration and top navigation live in `hugo.yaml`, and
-small theme overrides belong in `assets/css/custom.css`.
-
-Run the production build before publishing:
-
-```sh
-HUGO_ENV=production HUGO_ENVIRONMENT=production \
-  hugo --gc --minify --panicOnWarning
-```
-
-The build writes to `out/`. `refLinksErrorLevel: ERROR` and
-`--panicOnWarning` make unresolved Hugo references and build warnings fail.
-Hugo does not check arbitrary external links.
-
-Hextra is pinned in `go.mod` and verified by `go.sum`. To deliberately update
-it, choose a released version, update the module, inspect the diff, and rebuild:
-
-```sh
-hugo mod get github.com/imfing/hextra@v0.12.3
 go mod verify
+"$hugo_bin" server --disableFastRender
 ```
 
-## Deployment (Cloudflare Workers Static Assets)
+For production, use `"$hugo_bin" --gc --minify --panicOnWarning` with `HUGO_ENV=production`
+and `HUGO_ENVIRONMENT=production`. Output goes to ignored `docs/out/`. Remove old output
+before checking a reorganization: Hugo does not automatically delete obsolete pages.
+The CI checkout is clean. PR builds don't require the production deployment gate.
 
-The site deploys automatically via
-[`.github/workflows/docs.yml`](../.github/workflows/docs.yml). Pushes to
-`main` touching `docs/**` install checksum-verified Hugo Extended, verify
-the Hextra module, build the site, and deploy `out/` with `wrangler deploy`.
-The worker is `sprout-docs`, configured in
-[`wrangler.jsonc`](wrangler.jsonc).
+## Design and checks
 
-One-time Cloudflare setup, local deploys, previews, and token rotation are
-documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+Hugo/Hextra still supplies Markdown, code highlighting, copy buttons, search and the
+pinned build. Local layouts provide a small three-page shell. The core script partial loads Hextra's code-copy controller and, on the homepage,
+the local pixel-hover controller. It omits the unused sidebar/theme controllers. The design is always
+dark; its pixel wordmark and signal drawing are SVG, with no remote fonts or image CDN.
+Custom CSS lives in `assets/css/custom.css`. The logo reacts per pixel to pointer hover with color, scale and offset echoes.
+The hit areas stay fixed to avoid hover flicker. Touch leaves the logo static;
+reduced motion uses immediate color changes only.
 
-Notes:
+`assets/json/search-data.json` includes the homepage operator guide as well as the
+two regular pages. Keep internal notes outside `content/` so they cannot enter search.
+The old public routes redirect to their corresponding sections through `static/_redirects`.
 
-- The workflow path filter keeps app-only pushes to main from triggering docs rebuilds.
-- The Cloudflare account ID and API token are repository secrets, never site
-  configuration.
-- There are no automatic PR previews. `npx wrangler@4 versions upload` creates
-  a preview version without changing production.
+Validate the warning-fatal build, internal links and anchors, search (including homepage
+sections), mobile/desktop layouts, keyboard navigation, reduced motion, and the 404 page.
+Keep README and AGENTS links current when moving repository notes. Site changes don't
+alter the application's dashboard themes or appearance settings.

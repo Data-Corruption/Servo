@@ -69,23 +69,8 @@ func newMigrator(buildInfo build.BuildInfo) *migrator.Migrator {
 			return fmt.Errorf("failed to create sessions table: %w", err)
 		}
 
-		// Small SQLite IPC example used by `app hash` and the service worker.
-		if _, err := tx.ExecContext(ctx, `
-			CREATE TABLE hash_requests (
-				id           INTEGER PRIMARY KEY,
-				input        TEXT NOT NULL,
-				result       TEXT,
-				created_at   INTEGER NOT NULL, -- unix milliseconds
-				expires_at   INTEGER NOT NULL, -- unix milliseconds
-				completed_at INTEGER,          -- unix milliseconds
-				CHECK (length(CAST(input AS BLOB)) BETWEEN 1 AND 4096)
-			) STRICT;
-
-			CREATE INDEX hash_requests_pending
-			ON hash_requests (id)
-			WHERE result IS NULL;
-		`); err != nil {
-			return fmt.Errorf("failed to create hash requests table: %w", err)
+		if _, err := tx.ExecContext(ctx, `CREATE TABLE game_operation (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL) STRICT;`); err != nil {
+			return fmt.Errorf("create game operation: %w", err)
 		}
 
 		// Store config with default values

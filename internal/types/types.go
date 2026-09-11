@@ -9,12 +9,44 @@ import (
 )
 
 type Configuration struct {
+	// game server / driver
+	// ActiveDriver is the filename of the active driver in the drivers dir.
+	// Empty = none activated.
+	ActiveDriver string `json:"activeDriver"`
+	// RestartTime is the daily restart window as "HH:MM" (host-local time).
+	RestartTime    string `json:"restartTime"`
+	RestartEnabled bool   `json:"restartEnabled"`
+	// BackupsEnabled makes the restart window take a backup (and enables
+	// backup-only runs while the server is offline).
+	BackupsEnabled bool `json:"backupsEnabled"`
+	// BackupRetention is how many archives to keep, newest first.
+	BackupRetention int `json:"backupRetention"`
+	// NotifyLeadMinutes is how many minutes before the restart window players
+	// are warned via the notify verb. 0 = no warning.
+	NotifyLeadMinutes int `json:"notifyLeadMinutes"`
+	// Uploaded background image filenames (within the backgrounds dir).
+	// Empty = default background.
+	LoginBackground     string `json:"loginBackground"`
+	DashboardBackground string `json:"dashboardBackground"`
+	// appearance
+	// ForcedTheme pins a DaisyUI theme for everyone and hides the dark mode
+	// toggle. Empty = per-user light/dark toggle.
+	ForcedTheme string `json:"forcedTheme"`
+	// BackgroundBlur is the background image blur radius in px (0 = sharp).
+	BackgroundBlur int `json:"backgroundBlur"`
+	// ContentAlign floats the content column left/center/right on wide
+	// displays. Empty = center.
+	ContentAlign string `json:"contentAlign"`
+	// game server connection info surfaced on the dashboard (copy buttons)
+	GameAddress  string `json:"gameAddress"`
+	GamePassword string `json:"gamePassword"`
+
 	LogLevel string `json:"logLevel"`
 	// UIBind is the self-signed HTTPS dashboard listener
-	// (e.g. "127.0.0.1:8484", or ":8484" for explicit LAN exposure).
+	// (defaults to ":8829" for LAN access in production).
 	UIBind string `json:"uiBind"`
 	// ProxyBind is the optional loopback-only plain HTTP listener for local
-	// reverse proxies such as Caddy (e.g. "127.0.0.1:8485"). Empty = disabled.
+	// reverse proxies such as Caddy (defaults to "127.0.0.1:8830"). Empty = disabled.
 	ProxyBind string `json:"proxyBind"`
 
 	UpdateNotifications    bool      `json:"updateNotifications"`
@@ -48,13 +80,22 @@ func NormalizeUsername(username string) string {
 }
 
 func DefaultConfig(buildInfo build.BuildInfo) Configuration {
-	// New production and development configurations stay local by default.
-	// Operators can still persist an explicit wildcard or LAN bind.
-	uiBind := fmt.Sprintf("127.0.0.1:%d", buildInfo.ServiceDefaultPort)
+	// Production is ready for LAN access and a local reverse proxy.
+	uiBind := fmt.Sprintf(":%d", buildInfo.ServiceDefaultPort)
+	proxyBind := fmt.Sprintf("127.0.0.1:%d", buildInfo.ServiceDefaultPort+1)
+	// Development builds bypass authentication; keep their default listener local.
+	if buildInfo.DevMode {
+		uiBind = "127.0.0.1" + uiBind
+		proxyBind = ""
+	}
 
 	return Configuration{
 		LogLevel:               buildInfo.DefaultLogLevel,
+		RestartTime:            "04:00",
+		BackupRetention:        5,
+		NotifyLeadMinutes:      10,
 		UIBind:                 uiBind,
+		ProxyBind:              proxyBind,
 		UpdateNotifications:    true,
 		BackgroundUpdateChecks: true,
 		LastUpdateCheck:        time.Time{},

@@ -1,0 +1,27 @@
+<main id="content" tabindex="-1">
+  {{ if .IsHome }}
+  <section class="servo-hero" aria-labelledby="servo-title">
+    <div class="servo-hero__copy">
+      <h1 id="servo-title" class="servo-wordmark"><span class="servo-sr">Servo</span>{{ readFile "static/images/wordmark.svg" | safeHTML }}</h1>
+      <p class="servo-lead">Dedicated game server manager,<br><span>friend group sized.</span></p>
+      <p class="servo-intro">For people who can run a game server manually and want to add daily restarts, backups, and a simple UI that allows other players to restart/update/etc the game server without giving them full machine access.</p>
+      <div class="servo-actions"><a class="servo-button" href="#install-servo">Get started</a><a class="servo-text-link" href="https://github.com/Data-Corruption/Servo">View source</a></div>
+      <p class="servo-meta">LINUX AMD64 / ARM64 <span>·</span> SELF-HOSTED</p>
+    </div>
+    <div class="servo-signal" aria-hidden="true">{{ readFile "static/images/signal.svg" | safeHTML }}</div>
+  </section>
+  {{ else }}
+  <header class="servo-page-heading">
+    <p class="servo-eyebrow">{{ .Params.number }} / {{ .LinkTitle }}</p>
+    <h1>{{ .Title }}</h1>
+    <p>{{ .Description }}</p>
+  </header>
+  {{ end }}
+  <div class="servo-document">
+    <aside class="servo-index" aria-label="On this page">
+      <p class="servo-eyebrow">{{ .Params.number }} / {{ .LinkTitle }}</p>
+      {{ .TableOfContents }}
+    </aside>
+    <article class="content servo-prose" aria-label="{{ .Title }}">{{ .Content }}</article>
+  </div>
+</main>

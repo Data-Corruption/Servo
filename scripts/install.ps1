@@ -132,14 +132,7 @@ function Write-Step {
 }
 
 function Write-Logo {
-    $logo = @'
- ______     ______   ______     ______     __  __     ______
-/\  ___\   /\  == \ /\  == \   /\  __ \   /\ \/\ \   /\__  _\
-\ \___  \  \ \  _-/ \ \  __<   \ \ \/\ \  \ \ \_\ \  \/_/\ \/
- \/\_____\  \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\
-  \/_____/   \/_/     \/_/ /_/   \/_____/   \/_____/     \/_/
-'@
-    Write-Host $logo
+    Write-Host "Servo - game server dashboard"
 }
 
 function Invoke-NativeChecked {

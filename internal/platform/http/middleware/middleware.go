@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Data-Corruption/Servo/internal/app"
@@ -183,7 +184,7 @@ func (s *AuthService) Auth() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := cookies.Read(r, SessionCookieName(s.app.BuildInfo().Name))
 			if token == "" {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				authenticationRequired(w, r)
 				return
 			}
 
@@ -194,7 +195,7 @@ func (s *AuthService) Auth() func(http.Handler) http.Handler {
 				return
 			}
 			if session == nil { // no session, or expired
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				authenticationRequired(w, r)
 				return
 			}
 
@@ -202,4 +203,15 @@ func (s *AuthService) Auth() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func authenticationRequired(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/settings/") || r.Method != "GET" || r.Header.Get("Accept") == "application/json" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"Session expired; sign in again"}`))
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

@@ -39,17 +39,17 @@ does not apply.
 | `scripts/install.sh`, `scripts/install.ps1` | The installers; templated by `build.sh` |
 | `scripts/test.sh`, `scripts/test-*` | Test entrypoints and harnesses |
 | `internal/cut`, `cmd/cut`, `cmd/cutmatrix` | Upstream only: the fence cutter and the 11-variant matrix; deleted by finalize |
-| `docs/content/docs/` | Reader-facing documentation (Hugo site) |
+| `docs/content/` | Reader-facing documentation (Hugo site) |
 | `docs/MAINTENANCE.md` | The install/update/uninstall protocol, precisely |
 
 ## Documents of record
 
-- `docs/content/docs/architecture.md`: how the processes, database, service,
+- `docs/ARCHITECTURE.md`: how the processes, database, service,
   dashboard, updates, and releases fit together. Start here.
 - `docs/MAINTENANCE.md`: paths, state machine, locks, drain order, detached
   jobs. Read it before changing anything in `internal/maintenance`,
   `internal/layout`, or either installer.
-- `docs/content/docs/getting-started/release.md`: publication ordering,
+- `docs/RELEASES.md`: publication ordering,
   resume, retention, signing identity.
 
 When a document and the code disagree, the code is right and the document is
@@ -144,9 +144,8 @@ and `internal/ui/assets/js/src/`.
 
 - CLI command: constructor in `internal/app/commands`, registered in
   `commands.go`. A test scans the AST and fails if you forget to register it.
-- Worker: replace the body of `runWorker` in `internal/app/commands/worker.go`.
-  If you remove the hash example, `scripts/test-lifecycle-e2e.sh` already has
-  `TEST_EXAMPLE_HASH=false` in forks.
+- Game worker: `runWorker` joins the operation runner, scheduler and background poller.
+  Keep `TEST_EXAMPLE_HASH=false` in the lifecycle harness.
 - Durable state: a migration step, then accessors beside the owning subsystem.
 - Dashboard route: a handler package under `internal/platform/http/router`,
   mounted in `router.go`, with an explicit permission on writes.
@@ -164,63 +163,17 @@ line does. Tests use only the standard `testing` package, open real SQLite in
 `t.TempDir()`, and spawn real subprocesses for cross-process claims. Keep it
 that way.
 
-## Upstream template only
 
-Skip this section in a finalized fork.
+## Servo-specific boundaries
 
-Optional features are source code fenced with ownership markers, not runtime
-flags:
+`internal/driver` owns Driver API v1 and platform execution. `internal/ops` owns serialized admission, activation, cached probes, schedules and the durable current/latest operation. Only the service initializes this runtime. Never resume interrupted operations or add automatic recovery starts.
 
-```text
-// --- BEGIN update.apply ---   ...   // --- END update.apply ---
-// --- FILE service.https ---        (whole file)
-// --- FILE template ---             (deleted by every finalize)
-```
+`internal/layout` owns retained drivers, game data and archives. Servo uninstall removes only the normal app data tree; game uninstall is an explicit driver operation and preserves backups.
 
-Four comment styles are recognized (`//`, `#`, `<!-- -->`, `/* */`). Owners:
-`update`, `update.apply`, `update.apply.auto`, `service`,
-`service.https`, plus reserved `template`. Nested fences express "needs both";
-whole-feature prerequisites live in `internal/cut/features.go`. Cutting a
-prerequisite removes its dependents transitively (`update.apply.auto` also
-requires `service`). Both CI matrices use that graph. Markdown is deliberately
-not a marker candidate.
+The root dashboard is `/`; settings is `/settings`. Raw diagnostics require admin. Login is username/password with the scaffold's fixed 30-minute expiry. API expiry returns 401 without renewing the session.
 
-- New optional code must live inside the correct fence or `FILE` owner, and
-  must leave every one of the 11 cut variants compiling and passing.
-  `./scripts/test.sh -cut` runs them all.
-- Do not add compatibility shims, legacy decoding, or deprecation paths.
-  Upstream never publishes releases; forks freeze their own invariants at
-  their first release. Change the initial migration, layouts, and protocols in
-  place.
-- Two things a fork cannot change after shipping: the artifact layout and the
-  cosign signing identity, which is derived from the path
-  `.github/workflows/release.yml`. Never rename or move that file.
-- `scratch-pad.md`, when present, is gitignored upstream design rationale.
-  Trust the code over it.
+## Documentation audience
 
-## Things `transplant` depends on
+The public site has three pages: Use Servo (home), Caddy, and Drivers. Write for the host operator and their friends, in the direct, practical voice of README.md. Only Caddy setup and driver authoring go into implementation detail. Keep architecture, builds, releases, deployment and future plans in docs/*.md or this file; never add those to site navigation or search. docs/local/ is historical reference, not current product behavior.
 
-These are a versioned contract for the separate setup wizard. If their
-semantics change, bump `Contract.Version` in `internal/cut/features.go` and
-coordinate the change with Transplant.
-
-- `scripts/cut --list-features-json` prints only JSON on stdout, with
-  `version: 1` and a `features` array of `{name, prerequisites}` records derived
-  from the cutter's graph. It exits without inspecting or editing the tree.
-  Discovery cannot be combined with `--finalize`, `--module`, or feature names.
-- `scripts/cut` previews by default, accepts `--finalize`, `--module`, and
-  positional feature names, and exits nonzero on failure. Removal expands
-  transitively: apply requires update; automatic application requires apply
-  and service; HTTPS requires service. The canonical names are `update`,
-  `update.apply`, `update.apply.auto`, `service`, and `service.https`.
-- `scripts/build.sh` has exactly one `# Project config ---...` section ending
-  at the next named section rule. Its exact `NAME="value"` assignments are
-  `APP_NAME`, `RELEASE_URL`, `CONTACT_URL`, `DEFAULT_LOG_LEVEL`, plus
-  `SERVICE_DESC` when service survives and `SERVICE_DEFAULT_PORT` when HTTPS
-  survives. The service fallbacks outside that section are not project inputs.
-- Markdown-only docs means retaining `docs/content/docs/**` and
-  `docs/MAINTENANCE.md`; everything else under `docs/` may be pruned.
-
-Transplant owns the questions and validates this contract before editing; the
-checkout's own cutter owns dependency expansion and finalization. Metadata and
-all cutter tooling remain template-only and disappear during finalization.
+The site is always dark, with a minimal layout, thin rules and pixel/glitch accents. Keep reading text calm, preserve keyboard navigation, and respect reduced motion. The application dashboard has its own appearance settings; this site design does not change them.

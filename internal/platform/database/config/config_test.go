@@ -35,18 +35,22 @@ func newTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestDefaultConfigUsesSafeDashboardBinds(t *testing.T) {
-	production := types.DefaultConfig(build.BuildInfo{ServiceDefaultPort: 8484})
-	if production.UIBind != "127.0.0.1:8484" {
-		t.Fatalf("production UI bind = %q, want 127.0.0.1:8484", production.UIBind)
+func TestDefaultConfigProvidesLANAndLocalProxyBinds(t *testing.T) {
+	production := types.DefaultConfig(build.BuildInfo{ServiceDefaultPort: 8829})
+	if production.UIBind != ":8829" || production.ProxyBind != "127.0.0.1:8830" {
+		t.Fatalf("production binds: HTTPS %q, proxy %q", production.UIBind, production.ProxyBind)
 	}
-
-	development := types.DefaultConfig(build.BuildInfo{
-		ServiceDefaultPort: 8484,
-		DevMode:            true,
-	})
-	if development.UIBind != "127.0.0.1:8484" {
-		t.Fatalf("development UI bind = %q, want 127.0.0.1:8484", development.UIBind)
+	development := types.DefaultConfig(build.BuildInfo{ServiceDefaultPort: 8829, DevMode: true})
+	if development.UIBind != "127.0.0.1:8829" || development.ProxyBind != "" {
+		t.Fatalf("development binds: HTTPS %q, proxy %q", development.UIBind, development.ProxyBind)
+	}
+	// Fresh database initialization must persist the same defaults.
+	cfg, err := View(newTestDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UIBind != ":8484" || cfg.ProxyBind != "127.0.0.1:8485" {
+		t.Fatalf("persisted binds: HTTPS %q, proxy %q", cfg.UIBind, cfg.ProxyBind)
 	}
 }
 

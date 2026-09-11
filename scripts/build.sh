@@ -44,7 +44,6 @@
 # Mirrors: there is no build mode for mirrors. Signed release artifacts are
 # portable - copy the release bucket byte-for-byte and install with
 # APP_RELEASE_URL pointing at the copy; all cosign signatures stay valid.
-# See docs/content/docs/getting-started/mirror.md.
 #
 # Dependencies: go, gcc (only when tests run: go test -race needs cgo), and
 # curl. The build is pure Go (no cgo), so Linux release binaries are fully
@@ -69,7 +68,7 @@ SERVICE_DEFAULT_PORT="0" # fallback for after cut
 
 APP_NAME="servo"
 # The URL path is also the publication prefix inside R2_BUCKET. End with /.
-RELEASE_URL="https://releav/servo/"
+RELEASE_URL="https://releases.sproutcli.dev/servo/"
 CONTACT_URL="https://github.com/Data-Corruption/Servo"
 DEFAULT_LOG_LEVEL="warn"
 

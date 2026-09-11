@@ -43,7 +43,7 @@ func configCommand(a *app.App) *cli.Command {
 					},
 					&cli.StringFlag{
 						Name:  "ui-bind",
-						Usage: `set dashboard HTTPS bind (for example ":8484")`,
+						Usage: `set dashboard HTTPS bind (for example ":8829")`,
 					},
 					&cli.IntFlag{
 						Name:  "port",

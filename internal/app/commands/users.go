@@ -32,7 +32,7 @@ func usersCommand(a *app.App) *cli.Command {
 					},
 					&cli.StringFlag{
 						Name:  "perms",
-						Usage: `space-separated permissions (e.g. "admin", "admin !server.control", "settings")`,
+						Usage: `space-separated permissions (e.g. "admin", "admin !servo.control", "servo.settings")`,
 						Value: "admin",
 					},
 				},

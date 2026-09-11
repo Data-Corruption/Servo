@@ -572,7 +572,7 @@ if [ "\${TEST_PORT:-0}" = "1" ]; then
   install -d -m 755 /tmp/occupied-bin
   cat > /tmp/occupied-bin/ss <<'PORT_EOF'
 #!/bin/sh
-printf '%s\n' 'LISTEN 0 128 127.0.0.1:8484'
+printf '%s\n' 'LISTEN 0 128 127.0.0.1:$SERVICE_DEFAULT_PORT'
 PORT_EOF
   chmod 755 /tmp/occupied-bin/ss
   if run_tester 'PATH=/tmp/occupied-bin:\$PATH APP_RELEASE_URL=file:///release/ APP_SKIP_VERIFY=true sh /release/install.sh' >/tmp/occupied-port.out 2>&1; then
@@ -592,7 +592,7 @@ case "\${TEST_SCENARIO:-default}" in
   no-update)
     test ! -e "/home/tester/.$APP_NAME/maintenance/release-url"
     printf '%s\n' "\$build_vars" | grep -q '"serviceEnabled":true'
-    printf '%s\n' "\$build_vars" | grep -q '"serviceDefaultPort":8484'
+    printf '%s\n' "\$build_vars" | grep -q '"serviceDefaultPort":$SERVICE_DEFAULT_PORT'
     ;;
   no-service)
     printf '%s\n' "\$build_vars" | grep -q '"serviceEnabled":false'
@@ -605,7 +605,7 @@ case "\${TEST_SCENARIO:-default}" in
     ;;
   default)
     printf '%s\n' "\$build_vars" | grep -q '"serviceEnabled":true'
-    printf '%s\n' "\$build_vars" | grep -q '"serviceDefaultPort":8484'
+    printf '%s\n' "\$build_vars" | grep -q '"serviceDefaultPort":$SERVICE_DEFAULT_PORT'
     ;;
 esac
 if [ "\$managed_service" = "1" ]; then
@@ -622,6 +622,11 @@ maintenance_dir="\$storage_dir/maintenance"
 logs_dir="\$storage_dir/logs"
 instances_dir="\$control_dir/instances"
 state_file="\$control_dir/state.json"
+
+# Servo-owned game resources must survive removal of application data.
+for retained in drivers driver-data backups; do
+  run_tester "printf retained > '\$storage_dir/\$retained/retained-fixture'"
+done
 
 for private_dir in "\$storage_dir" "\$data_dir" "\$control_dir" \
   "\$instances_dir" "\$maintenance_dir" "\$maintenance_dir/jobs" "\$logs_dir"; do
@@ -668,6 +673,31 @@ if [ "\$managed_service" = "1" ]; then
   grep -q 'service already running' /tmp/duplicate-service.out
   probe_managed_service
 
+  if [ "\$service_has_https" = "1" ]; then
+    game_origin="https://127.0.0.1:$SERVICE_DEFAULT_PORT"
+    cat > "\$storage_dir/drivers/lifecycle.sh" <<'SERVO_DRIVER_EOF'
+#!/bin/sh
+case "\$1" in
+ describe) printf 'DRIVER_API=1\nNAME=Lifecycle fixture\nCAPABILITIES=\n' ;;
+ deps) exit 0 ;;
+ status) exit 3 ;;
+ install) echo \$\$ > "\$SERVO_DATA_DIR/started"; sleep 60 ;;
+ *) exit 0 ;;
+esac
+SERVO_DRIVER_EOF
+    chown tester:tester "\$storage_dir/drivers/lifecycle.sh"
+    chmod 700 "\$storage_dir/drivers/lifecycle.sh"
+    run_tester 'printf "fixture-only\n" | "\$HOME/.local/bin/$APP_NAME" users add --username lifecycle --perms admin'
+    curl --insecure --fail --silent --show-error -c /tmp/game-cookie -H "Origin: \$game_origin" --data 'username=lifecycle&password=fixture-only' "\$game_origin/login" >/dev/null
+    curl --insecure --fail --silent --show-error -b /tmp/game-cookie -H "Origin: \$game_origin" -H 'Content-Type: application/json' --data '{"name":"lifecycle.sh"}' "\$game_origin/settings/driver/activate" >/dev/null
+    curl --insecure --fail --silent --show-error -b /tmp/game-cookie -H "Origin: \$game_origin" -H 'Content-Type: application/json' --data '{}' "\$game_origin/api/op/install"
+    game_tries=0
+    until [ -f "\$storage_dir/driver-data/lifecycle.sh/started" ]; do
+      game_tries=\$((game_tries+1));test "\$game_tries" -lt 100;sleep 0.05
+    done
+    game_driver_pid=\$(cat "\$storage_dir/driver-data/lifecycle.sh/started")
+  fi
+
   old_managed_pid=\$managed_pid
   old_invocation_id=\$(service_invocation_id)
   test -n "\$old_invocation_id"
@@ -681,6 +711,10 @@ if [ "\$managed_service" = "1" ]; then
   fi
   wait_for_instance "\$control_dir" "\$managed_pid" wrapper-restarted
   probe_managed_service
+  if [ "\$service_has_https" = "1" ]; then
+    if kill -0 "\$game_driver_pid" 2>/dev/null; then echo "driver survived service drain" >&2;exit 1;fi
+    curl --insecure --fail --silent --show-error -b /tmp/game-cookie "\$game_origin/api/status" | grep -q '"outcome":"interrupted"'
+  fi
 fi
 
 if [ "\${TEST_FAULT:-0}" = "1" ]; then
@@ -903,6 +937,16 @@ if [ -f "\$maintenance_dir/release-url" ]; then
   run_tester "printf '%s\\n' file:///definitely-offline/ >'\$maintenance_dir/release-url'"
 fi
 
+if [ "\$managed_service" = "1" ] && [ "\$service_has_https" = "1" ]; then
+  rm -f "\$storage_dir/driver-data/lifecycle.sh/started"
+  curl --insecure --fail --silent --show-error -b /tmp/game-cookie -H "Origin: \$game_origin" -H 'Content-Type: application/json' --data '{}' "\$game_origin/api/op/install"
+  game_tries=0
+  until [ -f "\$storage_dir/driver-data/lifecycle.sh/started" ]; do
+    game_tries=\$((game_tries+1));test "\$game_tries" -lt 100;sleep 0.05
+  done
+  game_driver_pid=\$(cat "\$storage_dir/driver-data/lifecycle.sh/started")
+fi
+
 uninstall_output=\$(run_tester 'printf "y\n" | "\$HOME/.local/bin/$APP_NAME" uninstall' 2>&1)
 printf '%s\n' "\$uninstall_output"
 printf '%s\n' "\$uninstall_output" | grep -q 'Uninstall accepted'
@@ -921,6 +965,12 @@ until grep -q '"phase":"uninstalled"' "\$state_file"; do
 done
 
 test ! -e "\$data_dir"
+for retained in drivers driver-data backups; do
+  test "\$(cat "\$storage_dir/\$retained/retained-fixture")" = retained
+done
+if [ "\$managed_service" = "1" ] && [ "\$service_has_https" = "1" ]; then
+  if kill -0 "\$game_driver_pid" 2>/dev/null; then echo "driver survived installer drain" >&2;exit 1;fi
+fi
 test ! -e "/home/tester/.local/bin/$APP_NAME"
 test ! -e "/home/tester/.config/systemd/user/$APP_NAME.service"
 test ! -L "/home/tester/.config/systemd/user/default.target.wants/$APP_NAME.service"

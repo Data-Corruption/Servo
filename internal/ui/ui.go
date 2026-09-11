@@ -67,7 +67,7 @@ func (ui *UI) PageData(title, version string) map[string]any {
 	return map[string]any{
 		"CSS":     ui.CSS.URLPath,
 		"JS":      ui.JS.URLPath,
-		"Favicon": template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🌱</text></svg>`),
+		"Favicon": template.URL(`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='.9em' font-size='90' text-anchor='middle'>🛰️</text></svg>`),
 		"Title":   title,
 		"Version": version,
 	}

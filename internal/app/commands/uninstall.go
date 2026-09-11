@@ -18,7 +18,7 @@ func uninstallCommand(a *app.App) *cli.Command {
 		Usage: "uninstall the app",
 		Action: func(ctx context.Context, _ *cli.Command) error {
 			// confirmation
-			msg := fmt.Sprintf("Are you sure you want to uninstall %s? This will delete all data and the application binary.", a.BuildInfo().Name)
+			msg := fmt.Sprintf("Are you sure you want to uninstall %s? This removes Servo, its configuration, sessions and backgrounds. Driver scripts, game data and backups are kept.", a.BuildInfo().Name)
 			if yes, err := prompt.YesNo(msg); err != nil {
 				return fmt.Errorf("prompt failed: %w", err)
 			} else if !yes {

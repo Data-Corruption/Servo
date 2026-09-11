@@ -8,7 +8,7 @@
 #           systemd --user is optional: without it (Alpine, Void, WSL, ...)
 #           only the binary is installed and the service step is skipped.
 # Examples:
-#   curl -fsSL https://releases.sproutcli.dev/install.sh | sh
+#   curl -fsSL https://releases.sproutcli.dev/servo/install.sh | sh
 #   ~/.<app>/maintenance/install.sh --uninstall  # offline
 #
 # Mirrors: run with APP_RELEASE_URL=https://mirror.example.com/ to install from
@@ -21,15 +21,7 @@
 # sha256 check still runs). Only for local/matrix installer testing against
 # unsigned artifacts - never use it for real installs.
 
-# print logo, i made this with https://manytools.org/hacker-tools/ascii-banner/ <3
-cat << 'EOF'
- ______     ______   ______     ______     __  __     ______  
-/\  ___\   /\  == \ /\  == \   /\  __ \   /\ \/\ \   /\__  _\ 
-\ \___  \  \ \  _-/ \ \  __<   \ \ \/\ \  \ \ \_\ \  \/_/\ \/ 
- \/\_____\  \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\ 
-  \/_____/   \/_/     \/_/ /_/   \/_____/   \/_____/     \/_/ 
-                                                              
-EOF
+printf '\nServo - game server dashboard\n\n'
 
 set -u
 umask 077
@@ -579,7 +571,7 @@ run_uninstall() {
     release_lifecycle_lock
 
     successf 'Uninstalled: %s' "$APP_NAME"
-    successf 'Retained maintenance state and logs in: %s' "$STORAGE_DIR"
+    successf 'Retained drivers, game data, backups, maintenance state and logs in: %s' "$STORAGE_DIR"
 }
 
 # Check if a port is in use. Returns 0 if in use, 1 if free or unknown.

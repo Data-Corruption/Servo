@@ -100,3 +100,36 @@ func TestNewRejectsPathLikeAppNames(t *testing.T) {
 		}
 	}
 }
+
+func TestGameDirectoriesSurviveDataRemoval(t *testing.T) {
+	l := FromStorage(filepath.Join(t.TempDir(), "servo"), "servo")
+	if err := l.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	data, backups, err := l.EnsureDriver("fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{l.Drivers, data, backups} {
+		if err := os.WriteFile(filepath.Join(dir, "keep"), []byte("retained"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.RemoveAll(l.Data); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{l.Drivers, data, backups} {
+		if _, err := os.Stat(filepath.Join(dir, "keep")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.RemoveAll(data); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := l.DriverPaths("fixture"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(data); !os.IsNotExist(err) {
+		t.Fatal("read recreated explicitly uninstalled game data")
+	}
+}

@@ -3,18 +3,18 @@
 // Stop, restart, update, and shared restart polling functionality
 
 import { blockClicks, unblockClicks, showDialog, showError } from './ui.js';
-import { getJSON, postJSON } from './api.js';
+import { getJSON, postJSON, sessionExpired } from './api.js';
 
 /** Stop the server. */
 export async function stopServer() {
     blockClicks();
     try {
         await postJSON('/settings/stop', {});
-        document.title = 'Server Stopped';
+        document.title = 'Servo Stopped';
         document.body.className = 'bg-base-100 min-h-screen flex items-center justify-center';
         document.body.innerHTML = `
             <div class="text-center">
-                <h1 class="text-2xl font-bold mb-2">Server Stopped</h1>
+                <h1 class="text-2xl font-bold mb-2">Servo Stopped</h1>
                 <p class="text-base-content/70">You can close this tab.</p>
             </div>
         `;
@@ -66,6 +66,7 @@ export function pollForRestart(action = 'restart') {
     const timeout = 300000;
 
     const check = async () => {
+        if (sessionExpired()) return;
         if (Date.now() - startTime > timeout) {
             unblockClicks();
             const label = action === 'update' ? 'Update' : 'Restart';
@@ -100,7 +101,7 @@ export function pollForRestart(action = 'restart') {
 export function initServerControls() {
     document.getElementById('settings-stop-btn')?.addEventListener('click', () => {
         showDialog({
-            title: 'Stop Server',
+            title: 'Stop Servo',
             message: 'Stop the service? You will lose access to this page.',
             tone: 'error',
             confirmLabel: 'Stop',
@@ -110,7 +111,7 @@ export function initServerControls() {
     });
     document.getElementById('settings-restart-btn')?.addEventListener('click', () => {
         showDialog({
-            title: 'Restart Server',
+            title: 'Restart Servo',
             message: 'Restart the service now?',
             tone: 'warning',
             confirmLabel: 'Restart',
@@ -120,7 +121,7 @@ export function initServerControls() {
     });
     document.getElementById('settings-update-btn')?.addEventListener('click', () => {
         showDialog({
-            title: 'Update Server',
+            title: 'Update Servo',
             message: 'Check for and apply an available update?',
             tone: 'warning',
             confirmLabel: 'Update',

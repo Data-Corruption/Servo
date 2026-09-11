@@ -78,8 +78,11 @@ func TestMigrate(t *testing.T) {
 
 		// Verify Config Exists with Default Values
 		cfg := readConfig(db)
-		if want := fmt.Sprintf("127.0.0.1:%d", buildInfo.ServiceDefaultPort); cfg.UIBind != want {
+		if want := fmt.Sprintf(":%d", buildInfo.ServiceDefaultPort); cfg.UIBind != want {
 			t.Errorf("Expected UIBind %s, got %s", want, cfg.UIBind)
+		}
+		if want := fmt.Sprintf("127.0.0.1:%d", buildInfo.ServiceDefaultPort+1); cfg.ProxyBind != want {
+			t.Errorf("Expected ProxyBind %s, got %s", want, cfg.ProxyBind)
 		}
 		if cfg.LogLevel != buildInfo.DefaultLogLevel {
 			t.Errorf("Expected LogLevel %s, got %s", buildInfo.DefaultLogLevel, cfg.LogLevel)
@@ -100,12 +103,8 @@ func TestMigrate(t *testing.T) {
 			t.Errorf("sessions table not usable: %v", err)
 		}
 
-		// Verify the example service IPC table exists in the initial schema.
-		if _, err := db.Exec(`
-			INSERT INTO hash_requests (input, created_at, expires_at)
-			VALUES ('hello', 0, 1)
-		`); err != nil {
-			t.Errorf("hash_requests table not usable: %v", err)
+		if _, err := db.Exec(`INSERT INTO game_operation (id,value) VALUES (1,'{}')`); err != nil {
+			t.Fatal(err)
 		}
 
 		// Verify Version

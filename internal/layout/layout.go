@@ -3,7 +3,9 @@ package layout
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -22,7 +24,11 @@ const (
 // also exposed for tests and tools that have already resolved the storage
 // root; callers of it are responsible for passing an absolute path.
 type Layout struct {
-	Storage string
+	Storage     string
+	Drivers     string
+	DriverData  string
+	Backups     string
+	Backgrounds string
 
 	Data    string
 	DB      string
@@ -75,12 +81,16 @@ func FromStorage(storage, appName string) Layout {
 	logs := filepath.Join(storage, "logs")
 	installer := installerFileName()
 	return Layout{
-		Storage: storage,
-		Data:    data,
-		DB:      filepath.Join(data, "db"),
-		Secrets: filepath.Join(data, "secrets"),
-		Temp:    filepath.Join(data, "tmp"),
-		Env:     filepath.Join(data, appName+".env"),
+		Storage:     storage,
+		Drivers:     filepath.Join(storage, "drivers"),
+		DriverData:  filepath.Join(storage, "driver-data"),
+		Backups:     filepath.Join(storage, "backups"),
+		Backgrounds: filepath.Join(data, "backgrounds"),
+		Data:        data,
+		DB:          filepath.Join(data, "db"),
+		Secrets:     filepath.Join(data, "secrets"),
+		Temp:        filepath.Join(data, "tmp"),
+		Env:         filepath.Join(data, appName+".env"),
 
 		Control:       control,
 		State:         filepath.Join(control, StateFileName),
@@ -115,7 +125,7 @@ func (l Layout) Ensure() error {
 // call before taking a lifecycle lease because uninstall never removes them.
 func (l Layout) EnsureRetained() error {
 	for _, dir := range []string{
-		l.Storage,
+		l.Storage, l.Drivers, l.DriverData, l.Backups,
 		l.Control,
 		l.Instances,
 		l.Maintenance,
@@ -133,7 +143,7 @@ func (l Layout) EnsureRetained() error {
 // applications must hold a shared lifecycle lease while calling it so they
 // cannot recreate data during an uninstall transaction.
 func (l Layout) EnsureData() error {
-	for _, dir := range []string{l.Data, l.DB, l.Secrets, l.Temp} {
+	for _, dir := range []string{l.Data, l.DB, l.Secrets, l.Temp, l.Backgrounds} {
 		if err := ensurePrivateDir(dir); err != nil {
 			return fmt.Errorf("prepare private directory %q: %w", dir, err)
 		}
@@ -154,4 +164,45 @@ func validateAppName(name string) error {
 		}
 	}
 	return nil
+}
+
+// ValidateDriverDirectory applies the retained directory policy during discovery.
+func ValidateDriverDirectory(dir string) error {
+	if !filepath.IsAbs(dir) {
+		return fmt.Errorf("driver directory must be absolute")
+	}
+	return validatePrivateDir(dir)
+}
+
+// DriverPaths validates existing paths without creating state during reads.
+func (l Layout) DriverPaths(name string) (data, backups string, err error) {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\:`) {
+		return "", "", fmt.Errorf("invalid driver name")
+	}
+	data, backups = filepath.Join(l.DriverData, name), filepath.Join(l.Backups, name)
+	for _, dir := range []string{l.DriverData, l.Backups} {
+		if err = validatePrivateDir(dir); err != nil {
+			return "", "", err
+		}
+	}
+	for _, dir := range []string{data, backups} {
+		if err = validatePrivateDir(dir); err != nil && !os.IsNotExist(err) {
+			return "", "", err
+		}
+	}
+	return data, backups, nil
+}
+
+// EnsureDriver is used only by admitted operations and activation.
+func (l Layout) EnsureDriver(name string) (data, backups string, err error) {
+	data, backups, err = l.DriverPaths(name)
+	if err != nil {
+		return "", "", err
+	}
+	for _, dir := range []string{data, backups} {
+		if err = ensurePrivateDir(dir); err != nil {
+			return "", "", err
+		}
+	}
+	return
 }

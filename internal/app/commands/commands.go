@@ -14,7 +14,6 @@ var constructors = []constructor{
 	uninstallCommand,
 	configCommand,
 	usersCommand,
-	hashCommand,
 	serviceCommand,
 }
 

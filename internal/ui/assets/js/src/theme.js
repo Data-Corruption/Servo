@@ -4,11 +4,11 @@
 
 const LIGHT_THEME = 'nord';
 const DARK_THEME = 'forest';
-const THEME_KEY = 'SPROUT_THEME';
+const THEME_KEY = 'SERVO_THEME';
 
 /** Get current theme, defaulting to system preference */
 export function getTheme() {
-    return localStorage.getItem(THEME_KEY) ||
+    return document.documentElement.dataset.forcedTheme || localStorage.getItem(THEME_KEY) ||
         (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? DARK_THEME : LIGHT_THEME);
 }
 
@@ -27,6 +27,7 @@ function updateThemeToggle() {
 
 /** Set theme and update UI */
 export function setTheme(theme) {
+    if (document.documentElement.dataset.forcedTheme) return;
     localStorage.setItem(THEME_KEY, theme);
     document.documentElement.setAttribute('data-theme', theme);
     updateThemeToggle();

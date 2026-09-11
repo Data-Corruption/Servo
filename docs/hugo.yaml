@@ -1,11 +1,10 @@
-baseURL: https://sproutcli.dev/
-title: Sprout
-description: >-
-  Template for Go CLIs and daemons with signed, transactional updates. Linux + Windows.
-
+baseURL: https://servo.sproutcli.dev/
+title: Servo
+description: Dedicated game server manager, friend group sized.
 enableRobotsTXT: true
 publishDir: out
 refLinksErrorLevel: ERROR
+disableKinds: [taxonomy, term, RSS]
 
 module:
   hugoVersion:
@@ -20,48 +19,32 @@ markup:
       unsafe: true
   highlight:
     noClasses: false
+  tableOfContents:
+    startLevel: 2
+    endLevel: 2
 
 menu:
   main:
-    - name: Documentation
-      pageRef: /docs
+    - name: Use Servo
+      pageRef: /
       weight: 1
-    - name: Search
+    - name: Caddy
+      pageRef: /caddy
       weight: 2
-      params:
-        type: search
-    - name: GitHub
-      url: https://github.com/Data-Corruption/Sprout
+    - name: Drivers
+      pageRef: /drivers
       weight: 3
-      params:
-        icon: github
 
 params:
-  description: >-
-    Template for Go CLIs and daemons with signed, transactional updates. Linux + Windows.
-  # Site-wide social preview. Hextra's opengraph partial and Hugo's embedded
-  # twitter_cards partial both fall back to the first entry when a page sets
-  # no images of its own. Crawlers want JPEG/PNG at 1200x630, not AVIF.
-  images:
-    - images/social-card.jpg
-  navbar:
-    displayTitle: true
-    displayLogo: false
+  description: Dedicated game server manager, friend group sized.
+  images: [images/social-card.jpg]
   theme:
-    default: system
-    displayToggle: true
-  footer:
-    enable: true
-    displayCopyright: false
-    displayPoweredBy: false
+    default: dark
+    displayToggle: false
   search:
     enable: true
     type: flexsearch
-  # Hextra defaults to mermaid@latest. Pin it; the fetched file is self-hosted
-  # and fingerprinted into the build, so only build-time fetches hit the CDN.
-  mermaid:
-    base: https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist
   editURL:
     enable: false
   page:
-    displayPagination: true
+    displayPagination: false

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  {{ partial "head.html" . }}
+  <body>
+    <a class="servo-skip" href="#content">Skip to content</a>
+    <header class="servo-header">
+      <div class="servo-header__inner">
+        <a class="servo-brand" href="{{ site.Home.RelPermalink }}" aria-label="Servo home"><img src="{{ "favicon.svg" | relURL }}" alt="" width="28" height="28"> SERVO<span aria-hidden="true">_</span></a>
+        <nav class="servo-nav" aria-label="Main navigation">
+          {{ range site.Menus.main }}
+            {{ $active := eq $.RelPermalink .URL }}
+            <a href="{{ .URL }}" {{ if $active }}aria-current="page"{{ end }}>{{ .Name }}</a>
+          {{ end }}
+        </nav>
+        <div class="servo-search">{{ partial "search.html" . }}</div>
+      </div>
+    </header>
+    {{ block "main" . }}{{ end }}
+    <footer class="servo-footer">
+      <span>Docs via <a href="https://imfing.github.io/hextra/">Hextra</a></span>
+      <div><a href="https://github.com/Data-Corruption/Servo">GitHub</a><span>Built on <a href="https://sproutcli.dev/">Sprout</a></span><span>© {{ now.Year }} <a href="https://github.com/Data-Corruption">Matthew Pombo</a></span></div>
+    </footer>
+    {{ partial "scripts.html" . }}
+  </body>
+</html>

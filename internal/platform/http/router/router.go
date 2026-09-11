@@ -1,10 +1,13 @@
 package router
 
 import (
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/Data-Corruption/Servo/internal/platform/http/router/game"
 
 	"github.com/Data-Corruption/Servo/internal/app"
 	"github.com/Data-Corruption/Servo/internal/platform/http/middleware"
@@ -44,6 +47,7 @@ func New(a *app.App) *chi.Mux {
 	r.Get("/healthz", handleHealth)
 	r.Get("/assets/*", a.UI.ServeAsset)
 	RegisterLoginRoutes(a, auth, r)
+	r.Get("/bg/login", game.Background(a, "login"))
 
 	// Everything else requires a session. Dev-mode builds grant the protected
 	// routes admin permissions without creating a session.
@@ -55,6 +59,7 @@ func New(a *app.App) *chi.Mux {
 		}
 		protected.Post("/logout", handleLogout(a, auth))
 		settings.Register(a, protected)
+		game.Register(a, protected)
 	})
 
 	return r
@@ -88,7 +93,8 @@ func csrfGuard(next http.Handler) http.Handler {
 		}
 		// JSON endpoints must receive JSON; /login is the only form-encoded POST
 		if r.URL.Path != "/login" && r.ContentLength != 0 {
-			if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if ct != "application/json" && !(r.URL.Path == "/settings/background" && ct == "multipart/form-data") {
 				http.Error(w, "expected application/json", http.StatusUnsupportedMediaType)
 				return
 			}

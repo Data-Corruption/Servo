@@ -266,7 +266,7 @@ func TestAuthDoesNotExtendExpiry(t *testing.T) {
 	hash := crypto.Hash(token)
 	expiry := time.Now().Add(time.Minute).Truncate(time.Second)
 	if err := sessions.Create(a.DB, hash, sessions.Session{
-		Expiry: expiry, Perms: types.PermSettings, Username: "admin",
+		Expiry: expiry, Perms: types.PermServoSettings, Username: "admin",
 	}); err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}

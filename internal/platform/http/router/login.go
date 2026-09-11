@@ -24,10 +24,15 @@ func loginData(a *app.App) map[string]any {
 	data := a.UI.PageData("Login", a.BuildInfo().Version)
 	// First-run hint: with no credentials the form is a dead end, so tell the
 	// user how to create one instead.
-	if cfg, err := config.View(a.DB); err == nil && len(cfg.Credentials) == 0 {
-		data["NoCredentials"] = true
+	if cfg, err := config.View(a.DB); err == nil {
+		data["NoCredentials"] = len(cfg.Credentials) == 0
 		data["AppName"] = a.BuildInfo().Name
+		data["HasBackground"] = cfg.LoginBackground != ""
+		data["BackgroundBlur"] = cfg.BackgroundBlur
+		data["ContentAlign"] = cfg.ContentAlign
+		data["ForcedTheme"] = cfg.ForcedTheme
 	}
+
 	return data
 }
 

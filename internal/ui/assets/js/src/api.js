@@ -1,56 +1,34 @@
-
-// API Helpers
-// Unified fetch wrappers with structured error handling
-
+// Shared requests distinguish session expiry from transient network failures.
+let expired = false;
+export function sessionExpired() { return expired; }
+export class SessionExpiredError extends Error {}
 async function parseResponse(res) {
+    if (res.status === 401 || (res.redirected && new URL(res.url).pathname === '/login')) {
+        expired = true;
+        window.dispatchEvent(new Event('servo-session-expired'));
+        window.location.assign('/login');
+        throw new SessionExpiredError('Session expired; sign in again');
+    }
     const text = await res.text();
-    if (!text) return null;
-    try {
-        return JSON.parse(text);
-    } catch {
-        return text;
-    }
+    let value = text;
+    try { value = text ? JSON.parse(text) : null; } catch { /* plain error response */ }
+    if (!res.ok) throw new Error(value?.error || value?.message || text || `HTTP ${res.status}`);
+    return value;
 }
-
-async function getErrorMessage(res) {
-    const parsed = await parseResponse(res);
-    if (parsed && typeof parsed === 'object') {
-        if (typeof parsed.error === 'string') return parsed.error;
-        if (typeof parsed.message === 'string') return parsed.message;
-    }
-    if (typeof parsed === 'string' && parsed) return parsed;
-    return `HTTP ${res.status}`;
-}
-
 export async function requestJSON(endpoint, { method = 'GET', body, signal } = {}) {
-    const res = await fetch(endpoint, {
-        method,
-        headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal,
-    });
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res));
-    }
-    return parseResponse(res);
+    if (expired) throw new SessionExpiredError('Session expired');
+    return parseResponse(await fetch(endpoint, {
+        method, signal,
+        headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    }));
 }
-
-export function getJSON(endpoint, signal) {
-    return requestJSON(endpoint, { method: 'GET', signal });
+export async function uploadForm(endpoint, body) {
+    if (expired) throw new SessionExpiredError('Session expired');
+    return parseResponse(await fetch(endpoint, { method: 'POST', headers: { Accept: 'application/json' }, body }));
 }
-
-export function postJSON(endpoint, body, signal) {
-    return requestJSON(endpoint, { method: 'POST', body, signal });
-}
-
-export function patchJSON(endpoint, body, signal) {
-    return requestJSON(endpoint, { method: 'PATCH', body, signal });
-}
-
-export function putJSON(endpoint, body, signal) {
-    return requestJSON(endpoint, { method: 'PUT', body, signal });
-}
-
-export function deleteJSON(endpoint, body, signal) {
-    return requestJSON(endpoint, { method: 'DELETE', body, signal });
-}
+export const getJSON = (url, signal) => requestJSON(url, { signal });
+export const postJSON = (url, body, signal) => requestJSON(url, { method: 'POST', body, signal });
+export const patchJSON = (url, body, signal) => requestJSON(url, { method: 'PATCH', body, signal });
+export const putJSON = (url, body, signal) => requestJSON(url, { method: 'PUT', body, signal });
+export const deleteJSON = (url, body, signal) => requestJSON(url, { method: 'DELETE', body, signal });

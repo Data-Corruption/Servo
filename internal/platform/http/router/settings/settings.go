@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Data-Corruption/Servo/internal/driver"
+
 	"github.com/Data-Corruption/Servo/internal/app"
 
 	"github.com/Data-Corruption/Servo/internal/maintenance"
@@ -19,8 +21,10 @@ import (
 )
 
 func Register(a *app.App, r chi.Router) {
-	r.Get("/", handleGetSettings(a))
+	r.Get("/settings", handleGetSettings(a))
 	r.Post("/settings", handleUpdateSettings(a))
+	r.Post("/settings/background", handleUploadBackground(a))
+	r.Post("/settings/background/clear", handleClearBackground(a))
 	r.Post("/settings/stop", handleStop(a))
 	r.Post("/settings/restart", handleRestart(a))
 	r.Post("/settings/update", handleUpdate(a))
@@ -36,10 +40,39 @@ func handleGetSettings(a *app.App) http.HandlerFunc {
 		}
 
 		data := a.UI.PageData("Settings", a.BuildInfo().Version)
-		data["UpdateAvailable"] = cfg.UpdateNotifications && a.UpdateAvailable(cfg)
+		perms := middleware.SessionPerms(r)
+		data["UpdateAvailable"] = cfg.UpdateNotifications && a.UpdateAvailable(cfg) && perms.Has(types.PermServoControl)
+		data["CanServoSettings"] = perms.Has(types.PermServoSettings)
+		data["CanServoControl"] = perms.Has(types.PermServoControl)
+		data["IsAdmin"] = perms.Has(types.PermAdmin)
+		data["Themes"] = types.Themes
+		data["DriversDir"] = a.Layout.Drivers
+		if perms.Has(types.PermAdmin) {
+			drivers, err := driver.List(a.Layout.Drivers)
+			if err != nil {
+				xhttp.Error(r.Context(), w, err)
+				return
+			}
+			data["Drivers"] = drivers
+		}
+
 		data["LogLevel"] = cfg.LogLevel
 		data["UIBind"] = cfg.UIBind
 		data["ProxyBind"] = cfg.ProxyBind
+		data["RestartTime"] = cfg.RestartTime
+		data["RestartEnabled"] = cfg.RestartEnabled
+		data["BackupsEnabled"] = cfg.BackupsEnabled
+		data["BackupRetention"] = cfg.BackupRetention
+		data["NotifyLeadMinutes"] = cfg.NotifyLeadMinutes
+		data["ForcedTheme"] = cfg.ForcedTheme
+		data["BackgroundBlur"] = cfg.BackgroundBlur
+		data["ContentAlign"] = cfg.ContentAlign
+		data["GameAddress"] = cfg.GameAddress
+		data["GamePassword"] = cfg.GamePassword
+		data["ActiveDriver"] = cfg.ActiveDriver
+		data["LoginBackground"] = cfg.LoginBackground
+		data["DashboardBackground"] = cfg.DashboardBackground
+
 		if err := a.UI.Execute(w, "settings.html", data); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
@@ -50,16 +83,26 @@ func handleGetSettings(a *app.App) http.HandlerFunc {
 func handleUpdateSettings(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		if err := middleware.RequirePerm(r, types.PermSettings); err != nil {
+		if err := middleware.RequirePerm(r, types.PermServoSettings); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
 		}
 
 		// Parse body - all fields are optional
 		var body struct {
-			LogLevel  *string `json:"logLevel"`
-			UIBind    *string `json:"uiBind"`
-			ProxyBind *string `json:"proxyBind"`
+			LogLevel          *string `json:"logLevel"`
+			UIBind            *string `json:"uiBind"`
+			ProxyBind         *string `json:"proxyBind"`
+			RestartTime       *string `json:"restartTime"`
+			RestartEnabled    *bool   `json:"restartEnabled"`
+			BackupsEnabled    *bool   `json:"backupsEnabled"`
+			BackupRetention   *int    `json:"backupRetention"`
+			NotifyLeadMinutes *int    `json:"notifyLeadMinutes"`
+			ForcedTheme       *string `json:"forcedTheme"`
+			BackgroundBlur    *int    `json:"backgroundBlur"`
+			ContentAlign      *string `json:"contentAlign"`
+			GameAddress       *string `json:"gameAddress"`
+			GamePassword      *string `json:"gamePassword"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
 		dec := json.NewDecoder(r.Body)
@@ -68,6 +111,12 @@ func handleUpdateSettings(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		if body.BackgroundBlur != nil || body.ContentAlign != nil {
+			if err := middleware.RequirePerm(r, types.PermAdmin); err != nil {
+				xhttp.Error(r.Context(), w, err)
+				return
+			}
+		}
 		// Update only the fields that were provided. Validation happens inside
 		// config.Update (all writers get it); violations surface as 400s.
 		if _, err := config.Update(a.DB, func(cfg *types.Configuration) error {
@@ -80,12 +129,45 @@ func handleUpdateSettings(a *app.App) http.HandlerFunc {
 			if body.ProxyBind != nil {
 				cfg.ProxyBind = *body.ProxyBind
 			}
+			if body.RestartTime != nil {
+				cfg.RestartTime = *body.RestartTime
+			}
+			if body.RestartEnabled != nil {
+				cfg.RestartEnabled = *body.RestartEnabled
+			}
+			if body.BackupsEnabled != nil {
+				cfg.BackupsEnabled = *body.BackupsEnabled
+			}
+			if body.BackupRetention != nil {
+				cfg.BackupRetention = *body.BackupRetention
+			}
+			if body.NotifyLeadMinutes != nil {
+				cfg.NotifyLeadMinutes = *body.NotifyLeadMinutes
+			}
+			if body.ForcedTheme != nil {
+				cfg.ForcedTheme = *body.ForcedTheme
+			}
+			if body.BackgroundBlur != nil {
+				cfg.BackgroundBlur = *body.BackgroundBlur
+			}
+			if body.ContentAlign != nil {
+				cfg.ContentAlign = *body.ContentAlign
+			}
+			if body.GameAddress != nil {
+				cfg.GameAddress = *body.GameAddress
+			}
+			if body.GamePassword != nil {
+				cfg.GamePassword = *body.GamePassword
+			}
 			return nil
 		}); err != nil {
 			writeConfigUpdateError(r, w, err)
 			return
 		}
 
+		if a.Sched != nil {
+			a.Sched.Poke()
+		}
 		w.WriteHeader(http.StatusOK)
 	}
 }
@@ -109,7 +191,7 @@ func writeConfigUpdateError(r *http.Request, w http.ResponseWriter, err error) {
 func handleStop(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		if err := middleware.RequirePerm(r, types.PermServerControl); err != nil {
+		if err := middleware.RequirePerm(r, types.PermServoControl); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
 		}
@@ -137,7 +219,7 @@ func handleRestart(a *app.App) http.HandlerFunc {
 func handleRestartWith(a *app.App, restart func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		if err := middleware.RequirePerm(r, types.PermServerControl); err != nil {
+		if err := middleware.RequirePerm(r, types.PermServoControl); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
 		}
@@ -170,7 +252,7 @@ func handleUpdateWith(
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		if err := middleware.RequirePerm(r, types.PermServerControl); err != nil {
+		if err := middleware.RequirePerm(r, types.PermServoControl); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
 		}
@@ -239,7 +321,7 @@ func handleUpdateWith(
 
 func handleRestartStatus(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := middleware.RequirePerm(r, types.PermServerControl); err != nil {
+		if err := middleware.RequirePerm(r, types.PermServoControl); err != nil {
 			xhttp.Error(r.Context(), w, err)
 			return
 		}

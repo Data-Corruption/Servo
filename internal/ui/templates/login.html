@@ -1,11 +1,12 @@
 
 {{template "page_start" .}}
+{{ if .HasBackground }}<div aria-hidden="true" class="servo-background servo-background-login servo-blur-{{ .BackgroundBlur }}"></div>{{ end }}
 <!-- Main Content -->
-<div class="min-h-screen flex items-center justify-center p-4">
+<div class="relative min-h-screen flex items-center justify-center p-4 servo-align-{{ .ContentAlign }}">
     <div class="w-full max-w-sm space-y-6">
         <!-- Header -->
         <div class="flex flex-col items-center justify-center -mt-8">
-            <span class="text-4xl">🌱</span>
+            <span class="text-4xl">🛰️</span>
         </div>
         <!-- Login Box -->
         <div class="bg-base-100 border-base-300 border rounded-box p-6 shadow-sm">
@@ -51,7 +52,7 @@
             </form>
         </div>
         <!-- Theme Toggle (Minimalist) -->
-        <div class="flex justify-center text-sm">
+        {{ if not .ForcedTheme }}<div class="flex justify-center text-sm">
             <label class="label cursor-pointer gap-2 opacity-60 hover:opacity-100 transition-opacity">
                 <span>Dark Mode</span>
                 <input type="checkbox"
@@ -59,6 +60,7 @@
                        class="toggle toggle-primary toggle-sm" />
             </label>
         </div>
+        {{ end }}
         <!-- Footer -->
         <div class="text-center mt-8">
             <span class="text-xs text-base-content/40">{{ .Version }}</span>

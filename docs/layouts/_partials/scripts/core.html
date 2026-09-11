@@ -1,0 +1,9 @@
+{{/* Only load controllers used by this shell. Keep distinct asset paths for each. */}}
+{{- $script := resources.Get "js/core/code-copy.js" | resources.ExecuteAsTemplate "js/code-copy.js" . -}}
+{{- if hugo.IsProduction -}}{{- $script = $script | minify | fingerprint -}}{{- end -}}
+<script defer src="{{ $script.RelPermalink }}" integrity="{{ $script.Data.Integrity }}"></script>
+{{ if .IsHome }}
+  {{- $wordmark := resources.Get "js/wordmark.js" -}}
+  {{- if hugo.IsProduction -}}{{- $wordmark = $wordmark | minify | fingerprint -}}{{- end -}}
+  <script defer src="{{ $wordmark.RelPermalink }}" integrity="{{ $wordmark.Data.Integrity }}"></script>
+{{ end }}
