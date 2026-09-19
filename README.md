@@ -26,8 +26,13 @@ servo users add --username admin --perms "admin"
 Then open https://localhost:8829 or setup a [reverse proxy](https://servo.sproutcli.dev/caddy/).
 
 Place a driver in `~/.servo/drivers/`, make it executable, activate it in
-Settings, then click Install and Start. For reference I've used
-`drivers/fedora-palworld.sh` a fair bit.
+Settings, then click Install and Start.
+
+The [Palworld](drivers/fedora-palworld.sh) and [Valheim](drivers/fedora-valheim.sh)
+drivers are real examples I've made for Fedora and rootless Podman. They double
+as practical tests of Servo's driver support. Read their setup notes before
+installing: Palworld's are in the script; Valheim's are
+[alongside its driver](drivers/fedora-valheim.md).
 
 ## Who is this for?
 
