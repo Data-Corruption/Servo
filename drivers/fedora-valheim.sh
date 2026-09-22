@@ -16,6 +16,28 @@ PUBLIC=0                        # 0 = direct connections only; 1 = listed
 START_READY_TIMEOUT=300
 STOP_TIMEOUT=120
 
+# World modifiers. Empty = do not override the world's existing setting.
+# Presets reset previous modifiers; individual choices below apply afterwards.
+WORLD_PRESET=""                 # normal | casual | easy | hard | hardcore | immersive | hammer
+COMBAT=""                       # veryeasy | easy | hard | veryhard
+DEATH_PENALTY=""                # casual | veryeasy | easy | hard | hardcore
+RESOURCE_RATE=""                # muchless (0.5x) | less (0.75x) | more (1.5x) | muchmore (2x) | most (3x)
+RAID_FREQUENCY=""               # none (disable raids) | muchless | less | more | muchmore
+PORTALS=""                      # casual (all items) | hard (no boss portals) | veryhard (no portals)
+
+# true adds a world key; false omits it, not an explicit reset of a saved key.
+# See fedora-valheim.md for resetting existing world modifiers.
+PLAYER_BASED_RAIDS=true
+NO_BUILD_COST=false
+PASSIVE_ENEMIES=false
+NO_MAP=false
+
+# Valheim's own autosaves/backups, separate from Servo's stopped-game archives.
+SAVE_INTERVAL=1800              # seconds between world saves (30 minutes)
+WORLD_BACKUPS=4                 # built-in backups to keep; 0 disables them
+BACKUP_SHORT_INTERVAL=7200      # seconds (2 hours)
+BACKUP_LONG_INTERVAL=43200      # seconds (12 hours)
+
 # --- helpers ------------------------------------------------------------
 fail() { echo "$*" >&2; exit 1; }
 
@@ -61,6 +83,21 @@ validate_archive() {
   awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' "$2/types" || fail "archive contains links or special files"
 }
 
+choice() {
+  option=$1
+  value=$2
+  shift 2
+  for allowed in "$@"; do
+    [ "$value" != "$allowed" ] || return 0
+  done
+  fail "invalid $option; see the config block for allowed values"
+}
+
+integer() {
+  case "$2" in ''|*[!0-9]*|0[0-9]*) fail "$1 must be a decimal integer without leading zeros" ;; esac
+  [ "${#2}" -le 10 ] && [ "$2" -ge "$3" ] && [ "$2" -le 2147483647 ] || fail "$1 is out of range ($3..2147483647)"
+}
+
 validate_config() {
   [ "${#SERVER_PASSWORD}" -ge 5 ] || fail "set SERVER_PASSWORD to at least five characters"
   [ -n "$SERVER_NAME" ] && [ -n "$WORLD_NAME" ] || fail "server and world names must not be empty"
@@ -72,6 +109,20 @@ validate_config() {
   done
   [ "$GAME_PORT" -gt 1024 ] && [ "$GAME_PORT" -lt 65535 ] || fail "GAME_PORT must be between 1025 and 65534"
   [ "$START_READY_TIMEOUT" -lt 540 ] && [ "$STOP_TIMEOUT" -lt 540 ] || fail "timeouts must be below 540 seconds"
+  choice WORLD_PRESET "$WORLD_PRESET" "" normal casual easy hard hardcore immersive hammer
+  choice COMBAT "$COMBAT" "" veryeasy easy hard veryhard
+  choice DEATH_PENALTY "$DEATH_PENALTY" "" casual veryeasy easy hard hardcore
+  choice RESOURCE_RATE "$RESOURCE_RATE" "" muchless less more muchmore most
+  choice RAID_FREQUENCY "$RAID_FREQUENCY" "" none muchless less more muchmore
+  choice PORTALS "$PORTALS" "" casual hard veryhard
+  choice PLAYER_BASED_RAIDS "$PLAYER_BASED_RAIDS" true false
+  choice NO_BUILD_COST "$NO_BUILD_COST" true false
+  choice PASSIVE_ENEMIES "$PASSIVE_ENEMIES" true false
+  choice NO_MAP "$NO_MAP" true false
+  integer SAVE_INTERVAL "$SAVE_INTERVAL" 1
+  integer WORLD_BACKUPS "$WORLD_BACKUPS" 0
+  integer BACKUP_SHORT_INTERVAL "$BACKUP_SHORT_INTERVAL" 1
+  integer BACKUP_LONG_INTERVAL "$BACKUP_LONG_INTERVAL" 1
 }
 
 # Sets STATE and CID. Missing is different from an inspection failure. Use the
@@ -99,6 +150,21 @@ require_stopped() {
 }
 
 create_game() {
+  set -- -name "$SERVER_NAME" -world "$WORLD_NAME" \
+    -password "$SERVER_PASSWORD" -port "$GAME_PORT" -public "$PUBLIC" \
+    -saveinterval "$SAVE_INTERVAL" -backups "$WORLD_BACKUPS" \
+    -backupshort "$BACKUP_SHORT_INTERVAL" -backuplong "$BACKUP_LONG_INTERVAL"
+  # Valheim applies presets before custom modifiers and checkbox keys.
+  [ -z "$WORLD_PRESET" ] || set -- "$@" -preset "$WORLD_PRESET"
+  [ -z "$COMBAT" ] || set -- "$@" -modifier combat "$COMBAT"
+  [ -z "$DEATH_PENALTY" ] || set -- "$@" -modifier deathpenalty "$DEATH_PENALTY"
+  [ -z "$RESOURCE_RATE" ] || set -- "$@" -modifier resources "$RESOURCE_RATE"
+  [ -z "$RAID_FREQUENCY" ] || set -- "$@" -modifier raids "$RAID_FREQUENCY"
+  [ -z "$PORTALS" ] || set -- "$@" -modifier portals "$PORTALS"
+  [ "$PLAYER_BASED_RAIDS" != true ] || set -- "$@" -setkey playerevents
+  [ "$NO_BUILD_COST" != true ] || set -- "$@" -setkey nobuildcost
+  [ "$PASSIVE_ENEMIES" != true ] || set -- "$@" -setkey passivemobs
+  [ "$NO_MAP" != true ] || set -- "$@" -setkey nomap
   # Arguments are passed as argv, never interpolated into shell source. Tini
   # forwards SIGINT to the game, whose exec replaces the short launch shell.
   podman create --name "$CONTAINER" \
@@ -112,28 +178,33 @@ create_game() {
     -e SteamAppId=892970 -e LD_LIBRARY_PATH=/data/server/linux64 \
     "$image_id" -g -- /bin/sh -c '
       umask 077
-      exec ./valheim_server.x86_64 -nographics -batchmode -logFile /dev/stdout -savedir /data/saves "$@"
-    ' servo-valheim -name "$SERVER_NAME" -world "$WORLD_NAME" \
-    -password "$SERVER_PASSWORD" -port "$GAME_PORT" -public "$PUBLIC"
+      exec ./valheim_server.x86_64 -nographics -batchmode -logFile /data/runtime/valheim.log -savedir /data/saves "$@"
+    ' servo-valheim "$@"
 }
 
 wait_ready() {
   deadline=$(( $(date +%s) + START_READY_TIMEOUT ))
-  # Podman retains logs across starts. StartedAt excludes every prior launch.
-  started=$(podman container inspect --format '{{.State.StartedAt}}' "$game_id") || fail "cannot read launch time"
-  case "$started" in ''|0001-*) fail "missing launch time" ;; esac
   while :; do
     inspect_owned "$CONTAINER" game
-    [ "$CID" = "$game_id" ] && [ "$STATE" = running ] || fail "Valheim exited before becoming ready"
-    # Only a bounded tail is captured; logs may contain private player details.
-    logs=$(podman logs --since "$started" --tail 200 "$game_id" 2>&1) || fail "cannot read startup log"
-    if printf '%s\n' "$logs" | grep -F 'Game server connected' >/dev/null; then
-      echo "Valheim ready"
-      return
-    fi
-    [ "$(date +%s)" -lt "$deadline" ] || fail "Valheim did not become ready within ${START_READY_TIMEOUT}s"
+    [ "$CID" = "$game_id" ] && [ "$STATE" = running ] || start_failed "Valheim exited before becoming ready"
+    # Start clears this regular file before launch, so old readiness messages
+    # cannot count. Do not print log contents: they can contain player details.
+    private_file_if_present "$GAME_LOG"
+    ready=0
+    grep -F 'Game server connected' "$GAME_LOG" >/dev/null || ready=$?
+    case "$ready" in
+      0) echo "Valheim ready"; return ;;
+      1) ;;
+      *) start_failed "cannot read startup log" ;;
+    esac
+    [ "$(date +%s)" -lt "$deadline" ] || start_failed "Valheim did not become ready within ${START_READY_TIMEOUT}s"
     sleep 2
   done
+}
+
+start_failed() {
+  printf 'Game log: %s\nContainer output: podman logs --tail 200 %s\n' "$GAME_LOG" "$CONTAINER" >&2
+  fail "$@"
 }
 
 # describe/deps must also work before Servo has created any data directories.
@@ -160,6 +231,7 @@ DATA=${SERVO_DATA_DIR:-}
 case "$DATA" in /*) ;; *) fail "SERVO_DATA_DIR must be absolute" ;; esac
 [ "$DATA" != / ] || fail "SERVO_DATA_DIR must not be the filesystem root"
 UPDATER="$CONTAINER-updater"
+GAME_LOG="$DATA/runtime/valheim.log"
 if [ -e "$DATA" ] || [ -L "$DATA" ]; then private_dir "$DATA"; fi
 
 case "$1" in
@@ -182,6 +254,11 @@ start)
     echo "already running"
     exit 0
   fi
+  # Unity opens its log as a regular file; /dev/stdout can fail here under
+  # rootless Podman. Preserve the inode/SELinux label when resetting the log.
+  private_file_if_present "$GAME_LOG"
+  : > "$GAME_LOG" || fail "cannot prepare game log: $GAME_LOG"
+  printf 'Game log: %s\n' "$GAME_LOG"
   if ! systemd-run --user --collect --scope --quiet -- podman start "$game_id"; then
     fail "Scope creation failed; cannot start Valheim outside Servo's lifetime"
   fi
@@ -208,7 +285,7 @@ install|update)
   private_dir "$DATA"
   require_stopped
   for dir in server saves runtime; do make_private_dir "$DATA/$dir"; done
-  for file in update-pending steamcmd.log image-digest; do private_file_if_present "$DATA/runtime/$file"; done
+  for file in update-pending steamcmd.log image-digest valheim.log; do private_file_if_present "$DATA/runtime/$file"; done
   # SIGKILL on cancellation cannot run shell traps. This marker is removed
   # only after the complete operation, and the named updater prevents overlap.
   : > "$DATA/runtime/update-pending" || fail "cannot mark update pending"
@@ -222,6 +299,8 @@ install|update)
   [ "$1" != install ] || set -- "$1" validate
   # Keep the updater container after exit until success has been checked. A
   # cancelled caller cannot silently authorize Start, even if SteamCMD finishes.
+  # Each updater has a fresh Steam cache. Refresh app metadata after login so
+  # app_update does not fail with "Missing configuration" on a cold cache.
   echo "checking/downloading Valheim with SteamCMD ..."
   update_code=0
   podman run --name "$UPDATER" \
@@ -231,7 +310,8 @@ install|update)
     -v "$DATA:/data:Z" --entrypoint /bin/bash \
     "$image_id" /home/steam/steamcmd/steamcmd.sh \
     +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
-    +force_install_dir /data/server +login anonymous +app_update 896660 ${2:+"$2"} +quit \
+    +force_install_dir /data/server +login anonymous +app_info_update 1 \
+    +app_update 896660 ${2:+"$2"} +quit \
     > "$DATA/runtime/steamcmd.log" 2>&1 || update_code=$?
   cat "$DATA/runtime/steamcmd.log"
   [ "$update_code" -eq 0 ] || fail "SteamCMD failed; rerun Install or Update"
@@ -241,6 +321,8 @@ install|update)
   if [ "$STATE" != missing ]; then podman rm "$CID" || fail "cannot remove updater"; fi
   inspect_owned "$CONTAINER" game
   if [ "$STATE" != missing ]; then podman rm "$CID" || fail "cannot remove stopped game container"; fi
+  # Include the log in the volume's SELinux relabel when creating the runtime.
+  [ -e "$GAME_LOG" ] || { : > "$GAME_LOG" || fail "cannot create game log: $GAME_LOG"; }
   create_game || fail "cannot create game container"
   podman image inspect --format '{{json .RepoDigests}}' "$image_id" > "$DATA/runtime/image-digest" || fail "cannot record image digest"
   rm "$DATA/runtime/update-pending" || fail "cannot finish update"

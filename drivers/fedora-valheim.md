@@ -44,6 +44,119 @@ blocked until you successfully rerun Install or Update. A surviving updater must
 finish first; it has a 55-minute maximum runtime. A stop timeout reports failure
 and leaves the game running rather than force-killing it during a save.
 
+## World settings
+
+Edit these values in the driver's configuration block, then **Stop → Install →
+Start** to apply them. They are vanilla Valheim launch options and work with an
+existing world. Player-based raids are enabled by default in this driver; other
+gameplay overrides are unset. The [official server guide](https://www.valheimgame.com/support/a-guide-to-dedicated-servers/)
+documents the launch flags.
+
+| Setting | Default | Choices / effect |
+| --- | --- | --- |
+| `PLAYER_BASED_RAIDS` | `true` | Raids follow individual player progression. `true` or `false`. |
+| `WORLD_PRESET` | `""` | `normal`, `casual`, `easy`, `hard`, `hardcore`, `immersive`, `hammer`. Resets previous world modifiers. |
+| `COMBAT` | `""` | `veryeasy`, `easy`, `hard`, `veryhard`. |
+| `DEATH_PENALTY` | `""` | `casual`, `veryeasy`, `easy`, `hard`, `hardcore`. |
+| `RESOURCE_RATE` | `""` | `muchless` (0.5×), `less` (0.75×), `more` (1.5×), `muchmore` (2×), `most` (3×). |
+| `RAID_FREQUENCY` | `""` | `none` (disable raids), `muchless`, `less`, `more`, `muchmore`. Separate from player-based raid progression. |
+| `PORTALS` | `""` | `casual` (all items), `hard` (no boss portals), `veryhard` (no portals). |
+| `NO_BUILD_COST` | `false` | Build without material costs; recipes still need discovering. |
+| `PASSIVE_ENEMIES` | `false` | Enemies wait for provocation. |
+| `NO_MAP` | `false` | Disable the map and minimap. |
+
+Use lowercase values exactly as listed. Empty strings omit the modifier; they
+do not mean "reset to normal." Likewise, `false` omits a `-setkey` request rather
+than explicitly removing a saved world key. To reset world modifiers, choose
+`WORLD_PRESET="normal"` and reapply the individual choices you want. A preset is
+applied at every launch and resets other world modifiers too; leave it empty
+when you want to preserve existing world choices. The driver appends individual
+modifiers after the preset, then enabled checkbox keys.
+
+For example, these give more resources and allow metal through portals:
+
+```sh
+PLAYER_BASED_RAIDS=true
+RESOURCE_RATE="more"
+PORTALS="casual"
+```
+
+The [AMP Valheim settings](https://github.com/CubeCoders/AMPTemplates/blob/main/valheimconfig.json)
+also describe these choices and their resource multipliers.
+
+To disable raids, set this in the configuration block, then **Stop → Install →
+Start**:
+
+```sh
+RAID_FREQUENCY="none"
+```
+
+This passes `-modifier raids none`. `PLAYER_BASED_RAIDS` controls whose progression
+determines raids; setting it to `false` does not disable raids.
+
+Disabling raids does not make buildings invulnerable. The official server guide
+does not document a launch option to disable building damage, weather decay or
+structural collapse. Those controls require mods, which this vanilla driver does
+not install. For example, [Valheim Plus](https://github.com/valheimPlus/ValheimPlus/blob/development/valheim_plus.cfg)
+defines separate settings for structure damage and structural integrity.
+`NO_BUILD_COST` only removes material costs; it does not protect buildings.
+
+Valheim's own save and backup timing is configurable separately from Servo's
+scheduled archive backups:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `SAVE_INTERVAL` | `1800` | Seconds between world saves (30 minutes). |
+| `WORLD_BACKUPS` | `4` | Built-in backups to retain; `0` disables them. |
+| `BACKUP_SHORT_INTERVAL` | `7200` | Short backup interval in seconds (2 hours). |
+| `BACKUP_LONG_INTERVAL` | `43200` | Long backup interval in seconds (12 hours). |
+
+Intervals must be positive integers. Invalid settings fail before the driver
+pulls an image or changes the installation. The quoted argv construction keeps
+server names and passwords with spaces or shell punctuation intact.
+
+## Install fails with “Missing configuration”
+
+SteamCMD can report `Failed to install app '896660' (Missing configuration)`
+after updating itself and logging in successfully on a fresh install. This has
+also been [reported by another Valheim integration](https://github.com/kriegalex/k8s-charts/blob/main/charts/valheim-server/README.md#troubleshooting).
+It can indicate missing Steam app metadata; the message alone does not identify
+the cause conclusively.
+
+Install and Update explicitly refresh that metadata with `+app_info_update 1`
+between `+login anonymous` and `+app_update 896660`. If your installed driver lacks
+that command, add it or copy the updated script over, preserving your configuration
+block, then click Install again. The retry replaces the stopped updater container
+and preserves your saves. Leave `runtime/update-pending` in place; a successful
+install clears it. If it still fails, keep the full output in `runtime/steamcmd.log`
+for diagnosis.
+
+## Startup logs
+
+Unity writes the game log to `runtime/valheim.log` in this driver's data directory.
+Start prints the full path, and startup failures also point to the container
+output. With the default driver filename, read both as the Servo user:
+
+```sh
+tail -n 200 ~/.servo/driver-data/fedora-valheim.sh/runtime/valheim.log
+podman logs --tail 200 servo-valheim
+podman inspect --format 'Exit={{.State.ExitCode}} OOM={{.State.OOMKilled}} Error={{.State.Error}}' servo-valheim
+```
+
+Use your configured container name if it differs. `runtime/steamcmd.log` holds
+Install/Update output; the game log holds Unity output. The game log is reset
+before each stopped-to-running Start so readiness cannot come from an old launch.
+Starting an already-running game leaves its log intact. Game logs are excluded
+from save archives.
+
+If container output ends with `Unable to open log file, exiting.`, check the
+driver's launch command. Older copies used `-logFile /dev/stdout`, which Unity
+could not open under rootless Podman. The driver now uses the regular file
+`/data/runtime/valheim.log`. Copy the updated driver over, preserving your
+configuration, then click **Install** to recreate the stopped container with the
+new command, followed by **Start**. Editing the script alone does not change an
+existing container's launch command. Install preserves your saves.
+
 ## Runtime
 
 [`fedora-valheim.sh`](fedora-valheim.sh) uses the vanilla `docker.io/cm2network/valheim:base`

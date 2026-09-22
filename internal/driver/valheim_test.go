@@ -78,6 +78,25 @@ func (f *valheimFixture) write(path, value string) {
 
 func (f *valheimFixture) flag(name string) { f.write(filepath.Join(f.root, name), "yes") }
 
+func (f *valheimFixture) configure(values map[string]string) {
+	f.t.Helper()
+	lines := strings.Split(f.source, "\n")
+	for name, value := range values {
+		found := false
+		for i, line := range lines {
+			if strings.HasPrefix(line, name+"=") {
+				lines[i] = name + "=" + value
+				found = true
+				break
+			}
+		}
+		if !found {
+			f.t.Fatalf("unknown config field: %s", name)
+		}
+	}
+	f.write(f.script, strings.Join(lines, "\n"))
+}
+
 func (f *valheimFixture) run(args ...string) (string, int) {
 	f.t.Helper()
 	cmd := exec.Command("sh", append([]string{f.script}, args...)...)
@@ -145,7 +164,6 @@ container)
         *dev.servo.valheim.role*) echo "$kind" ;;
         '{{.Id}}') echo "$kind-id" ;;
         '{{.State.Status}}') cat "$FIXTURE/$kind" ;;
-        '{{.State.StartedAt}}') echo 2026-09-19T12:00:00Z ;;
         *) exit 125 ;;
       esac
       ;;
@@ -154,15 +172,10 @@ container)
   ;;
 start)
   echo running > "$FIXTURE/game"
-  ;;
-logs)
-  [ "$2" = --since ] && [ "$3" = 2026-09-19T12:00:00Z ] || {
-    echo 'Game server connected (stale launch)'; exit;
-  }
-  [ ! -f "$FIXTURE/log-fail" ] || exit 125
+  [ ! -f "$FIXTURE/log-fail" ] || { rm "$SERVO_DATA_DIR/runtime/valheim.log"; exit; }
   [ ! -f "$FIXTURE/early-exit" ] || { echo exited > "$FIXTURE/game"; exit; }
   [ ! -f "$FIXTURE/not-ready" ] || exit 0
-  echo 'Game server connected'
+  echo 'Game server connected' >> "$SERVO_DATA_DIR/runtime/valheim.log"
   ;;
 kill)
   [ "$2" = --signal ] && [ "$3" = SIGINT ] || exit 125
@@ -280,12 +293,23 @@ func TestValheimStartReadinessAndScope(t *testing.T) {
 		t.Run(flag, func(t *testing.T) {
 			f := newValheimFixture(t)
 			f.write(filepath.Join(f.root, "game"), "created")
+			log := filepath.Join(f.data, "runtime", "valheim.log")
+			if err := os.WriteFile(log, []byte("Game server connected (previous launch)\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
 			if flag != "" {
 				f.flag(flag)
-				f.failure("start")
+				out := f.failure("start")
+				if !strings.Contains(out, log) {
+					t.Fatalf("failure did not identify game log: %s", out)
+				}
 			} else {
 				f.success("start")
+				firstLog := f.read(log)
 				f.success("start")
+				if strings.Contains(firstLog, "previous launch") || f.read(log) != firstLog {
+					t.Fatal("Start reused stale readiness or cleared the running game's log")
+				}
 			}
 			trace := f.read(filepath.Join(f.root, "trace"))
 			if strings.Count(trace, "scope\n") != 1 || (flag == "scope-fail" && strings.Contains(trace, "<start>")) {
@@ -293,6 +317,34 @@ func TestValheimStartReadinessAndScope(t *testing.T) {
 			}
 			if strings.Contains(trace, "<pull>") || strings.Contains(trace, "<run>") {
 				t.Fatalf("start performed an update: %s", trace)
+			}
+		})
+	}
+}
+
+func TestValheimStartRejectsUnsafeLog(t *testing.T) {
+	for _, kind := range []string{"symlink", "directory", "permissions"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newValheimFixture(t)
+			f.write(filepath.Join(f.root, "game"), "created")
+			log := filepath.Join(f.data, "runtime", "valheim.log")
+			outside := filepath.Join(f.root, "preserve")
+			f.write(outside, "untouched")
+			var err error
+			switch kind {
+			case "symlink":
+				err = os.Symlink(outside, log)
+			case "directory":
+				err = os.Mkdir(log, 0700)
+			case "permissions":
+				err = os.WriteFile(log, []byte("old log"), 0644)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.failure("start")
+			if f.read(outside) != "untouched" || strings.Contains(f.read(filepath.Join(f.root, "trace")), "<start>") {
+				t.Fatal("unsafe log was modified or game was started")
 			}
 		})
 	}
@@ -328,10 +380,14 @@ func TestValheimInstallUpdateAndUninstall(t *testing.T) {
 		t.Fatalf("unchanged image skipped Steam update: %s", trace)
 	}
 	for _, arg := range []string{
+		"<+force_install_dir></data/server><+login><anonymous><+app_info_update><1><+app_update><896660>",
 		"<+app_update><896660><validate><+quit>", "<+app_update><896660><+quit>",
 		"<--timeout><3300>", "<--userns=keep-id:uid=1000,gid=1000>", "<--user><1000:1000>",
 		"<--restart=no>", "<2456:2456/udp>", "<2457:2457/udp>", "<-public><0>",
 		"<--entrypoint></usr/bin/tini>", "<" + f.data + ":/data:Z>",
+		"-logFile /data/runtime/valheim.log",
+		"<-saveinterval><1800><-backups><4><-backupshort><7200><-backuplong><43200>",
+		"<-setkey><playerevents>",
 	} {
 		if !strings.Contains(trace, arg) {
 			t.Errorf("missing %s in %s", arg, trace)
@@ -339,6 +395,14 @@ func TestValheimInstallUpdateAndUninstall(t *testing.T) {
 	}
 	if strings.Contains(trace, "<start>") {
 		t.Fatal("install/update started the game")
+	}
+	if strings.Contains(trace, "-logFile /dev/stdout") {
+		t.Fatal("Unity was configured to open /dev/stdout as a log file")
+	}
+	for _, omitted := range []string{"<-preset>", "<-modifier>", "<-setkey><nobuildcost>", "<-setkey><passivemobs>", "<-setkey><nomap>"} {
+		if strings.Contains(trace, omitted) {
+			t.Errorf("default unexpectedly overrides world settings with %s", omitted)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(f.data, "runtime", "update-pending")); !os.IsNotExist(err) {
 		t.Fatalf("pending marker not cleared: %v", err)
@@ -354,6 +418,83 @@ func TestValheimInstallUpdateAndUninstall(t *testing.T) {
 	}
 	if strings.Contains(f.read(filepath.Join(f.root, "trace")), "<rmi>") {
 		t.Fatal("uninstall removed a shared image")
+	}
+}
+
+func TestValheimConfiguredLaunchOptions(t *testing.T) {
+	f := newValheimFixture(t)
+	f.configure(map[string]string{
+		"WORLD_PRESET":          `"casual"`,
+		"COMBAT":                `"hard"`,
+		"DEATH_PENALTY":         `"easy"`,
+		"RESOURCE_RATE":         `"most"`,
+		"RAID_FREQUENCY":        `"none"`,
+		"PORTALS":               `"casual"`,
+		"NO_BUILD_COST":         "true",
+		"PASSIVE_ENEMIES":       "true",
+		"NO_MAP":                "true",
+		"SAVE_INTERVAL":         "900",
+		"WORLD_BACKUPS":         "0",
+		"BACKUP_SHORT_INTERVAL": "3600",
+		"BACKUP_LONG_INTERVAL":  "21600",
+		"SERVER_NAME":           `'Friends; $(do-not-execute) *'`,
+		"SERVER_PASSWORD":       `'secret with spaces; $dollars *'`,
+	})
+	f.success("install")
+	trace := f.read(filepath.Join(f.root, "trace"))
+	for _, sequence := range []string{
+		"<-preset><casual><-modifier><combat><hard><-modifier><deathpenalty><easy><-modifier><resources><most><-modifier><raids><none><-modifier><portals><casual><-setkey><playerevents><-setkey><nobuildcost><-setkey><passivemobs><-setkey><nomap>",
+		"<-saveinterval><900><-backups><0><-backupshort><3600><-backuplong><21600>",
+		"<-name><Friends; $(do-not-execute) *>",
+		"<-password><secret with spaces; $dollars *>",
+	} {
+		if !strings.Contains(trace, sequence) {
+			t.Errorf("missing argv sequence %s in %s", sequence, trace)
+		}
+	}
+}
+
+func TestValheimPlayerRaidsCanBeOmitted(t *testing.T) {
+	f := newValheimFixture(t)
+	f.configure(map[string]string{"PLAYER_BASED_RAIDS": "false"})
+	f.success("install")
+	if trace := f.read(filepath.Join(f.root, "trace")); strings.Contains(trace, "<-setkey>") {
+		t.Fatalf("false switch emitted a key: %s", trace)
+	}
+}
+
+func TestValheimInvalidLaunchOptionsFailBeforeMutation(t *testing.T) {
+	for name, value := range map[string]string{
+		"WORLD_PRESET":          `"custom"`,
+		"COMBAT":                `"normal"`,
+		"DEATH_PENALTY":         `"none"`,
+		"RESOURCE_RATE":         `"2"`,
+		"RAID_FREQUENCY":        `"sometimes"`,
+		"PORTALS":               `'casual -setkey nomap'`,
+		"PLAYER_BASED_RAIDS":    "1",
+		"NO_BUILD_COST":         "TRUE",
+		"PASSIVE_ENEMIES":       "yes",
+		"NO_MAP":                `""`,
+		"SAVE_INTERVAL":         "0",
+		"WORLD_BACKUPS":         "-1",
+		"BACKUP_SHORT_INTERVAL": "0900",
+		"BACKUP_LONG_INTERVAL":  "2147483648",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newValheimFixture(t)
+			f.configure(map[string]string{name: value})
+			for _, verb := range []string{"install", "update"} {
+				if out := f.failure(verb); !strings.Contains(out, name) {
+					t.Errorf("error did not identify %s: %s", name, out)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(f.root, "trace")); !os.IsNotExist(err) {
+				t.Fatalf("invalid config reached Podman: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(f.data, "runtime", "update-pending")); !os.IsNotExist(err) {
+				t.Fatalf("invalid config changed installation: %v", err)
+			}
+		})
 	}
 }
 
