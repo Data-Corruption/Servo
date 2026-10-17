@@ -115,19 +115,49 @@ Intervals must be positive integers. Invalid settings fail before the driver
 pulls an image or changes the installation. The quoted argv construction keeps
 server names and passwords with spaces or shell punctuation intact.
 
-## Install fails with “Missing configuration”
+## Updating
+
+When a Valheim patch comes out, **Stop → Update → Start**. Install and Update do
+the same work: SteamCMD checks the files in `server/` against the current public
+build and downloads only what changed. The output names the build, for example
+`Valheim build: 25730807 -> 25909431`. The operation fails unless the installed
+build matches the public build SteamCMD reported during the same run. To read
+the installed build yourself:
+
+```sh
+grep '"buildid"' ~/.servo/driver-data/fedora-valheim.sh/server/steamapps/appmanifest_896660.acf
+```
+
+Each updater is a new container with an empty Steam cache. SteamCMD can't update
+an install in place without the previous build's depot manifest from that cache,
+and Steam refuses to send it again: Steam's content log shows `Access Denied`, and
+SteamCMD then reports `state is 0x6 after update job`. The driver therefore removes
+Steam's app manifest before each run, so SteamCMD installs over the existing files.
+Files that a newer build no longer ships stay in `server/`.
+
+### Clients see “Incompatible version” after Update
+
+Older copies of this driver could report success without updating. SteamCMD
+printed `Success! App '896660' already up to date.` for an outdated install, and
+the old build kept running. Check the installed build as above. If it is behind,
+copy the updated script over, preserving your configuration block, then
+**Stop → Update → Start**.
+
+### Install fails with “Missing configuration”
 
 SteamCMD can report `Failed to install app '896660' (Missing configuration)`
 after updating itself and logging in successfully on a fresh install. This has
 also been [reported by another Valheim integration](https://github.com/kriegalex/k8s-charts/blob/main/charts/valheim-server/README.md#troubleshooting).
-It can indicate missing Steam app metadata; the message alone does not identify
-the cause conclusively.
+Without the app's metadata, `app_update` can also stop with `Timed out waiting
+for update to start`.
 
-Install and Update explicitly refresh that metadata with `+app_info_update 1`
-between `+login anonymous` and `+app_update 896660`. If your installed driver lacks
-that command, add it or copy the updated script over, preserving your configuration
-block, then click Install again. The retry replaces the stopped updater container
-and preserves your saves. Leave `runtime/update-pending` in place; a successful
+Install and Update refresh that metadata with `+app_info_update 1`, then print it
+with `+app_info_print 896660` before `+app_update 896660`. Printing makes SteamCMD
+wait until the metadata has arrived. The operation output leaves out that long
+listing; `runtime/steamcmd.log` keeps it. If your installed driver lacks these
+commands, copy the updated script over, preserving your configuration block, then
+click Install again. The retry replaces the stopped updater container and
+preserves your saves. Leave `runtime/update-pending` in place; a successful
 install clears it. If it still fails, keep the full output in `runtime/steamcmd.log`
 for diagnosis.
 
@@ -203,7 +233,8 @@ successful Install/Update; it is installation provenance, not a test claim.
 3. Restart the Servo service with the game running. Verify the client remains
    connected and the container lives outside Servo's service cgroup.
 4. Stop and update. Confirm the Steam check runs even when the image digest is
-   unchanged, the game remains stopped, and saves survive container recreation.
+   unchanged, the reported build matches the public build of app 896660, the
+   game remains stopped, and saves survive container recreation.
 5. Back up, change the world again, then restore and rejoin. Confirm both world
    data and permission lists are restored. Repeat using an imported world.
 6. Confirm all mounted data is owned by the host Servo user, the data root
@@ -216,3 +247,11 @@ successful Install/Update; it is installation provenance, not a test claim.
    are removed, while backups, the driver and shared cached images remain.
 
 Append actual versions, image digest and results here after live validation.
+
+Update path, 2026-10-17, on Ubuntu 24.04 (WSL2) with rootless Podman 4.9.3, not
+Fedora or SELinux. Image `cm2network/valheim@sha256:c3700ab02bbd3b27a2ef6d6a340dfc48f5e598564601743d4a44512e322a7c1a`.
+The driver updated a real 1.0.17 install (build 25730807) to 1.0.20 (build
+25909431) in about a minute. A second Update reported the same build. With the
+previous driver's SteamCMD commands, the same install failed with `state is 0x6
+after update job`. On a live server, Update had reported `already up to date`
+while staying on an older build.

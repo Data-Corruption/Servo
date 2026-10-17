@@ -201,11 +201,30 @@ run)
   echo exited > "$FIXTURE/updater"
   [ ! -f "$FIXTURE/update-fail" ] || { echo 'Steam download failed'; exit 1; }
   [ ! -f "$FIXTURE/no-success" ] || { echo 'Error despite exit zero'; exit; }
-  mkdir -p "$SERVO_DATA_DIR/server"
+  mkdir -p "$SERVO_DATA_DIR/server/steamapps"
   if [ ! -f "$FIXTURE/no-binary" ]; then
     printf '#!/bin/sh\n' > "$SERVO_DATA_DIR/server/valheim_server.x86_64"
     chmod 700 "$SERVO_DATA_DIR/server/valheim_server.x86_64"
   fi
+  build=200
+  [ ! -f "$FIXTURE/public-build" ] || read -r build < "$FIXTURE/public-build"
+  if [ ! -f "$FIXTURE/no-app-info" ]; then
+    # Shaped like app_info_print: depot manifests and older branches come
+    # with their own "public" and "buildid" keys.
+    printf '\033[0mAppID : 896660, change number : 1/1\n'
+    printf '"896660"\n{\n\t"depots"\n\t{\n\t\t"896661"\n\t\t{\n\t\t\t"manifests"\n\t\t\t{\n'
+    printf '\t\t\t\t"public"\n\t\t\t\t{\n\t\t\t\t\t"gid"\t\t"1"\n\t\t\t\t}\n\t\t\t}\n\t\t}\n'
+    printf '\t\t"branches"\n\t\t{\n\t\t\t"default_old"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"100"\n\t\t\t}\n'
+    printf '\t\t\t"public"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"%s"\n\t\t\t}\n\t\t}\n\t}\n}\n' "$build"
+  fi
+  manifest="$SERVO_DATA_DIR/server/steamapps/appmanifest_896660.acf"
+  if [ -f "$manifest" ]; then
+    # Real SteamCMD trusted a stale manifest without comparing builds.
+    echo "Success! App '896660' already up to date."
+    exit
+  fi
+  [ ! -f "$FIXTURE/wrong-build" ] || build=100
+  printf '"AppState"\n{\n\t"appid"\t\t"896660"\n\t"buildid"\t\t"%s"\n}\n' "$build" > "$manifest"
   echo "Success! App '896660' fully installed."
   ;;
 rm)
@@ -373,15 +392,30 @@ func TestValheimStop(t *testing.T) {
 
 func TestValheimInstallUpdateAndUninstall(t *testing.T) {
 	f := newValheimFixture(t)
-	f.success("install")
-	f.success("update") // Mock returns the same image ID; Steam must still run.
+	if out := f.success("install"); !strings.Contains(out, "Valheim build: none -> 200") {
+		t.Fatalf("install did not report the build: %s", out)
+	}
+	f.write(filepath.Join(f.root, "public-build"), "300")
+	out := f.success("update") // Mock returns the same image ID; Steam must still run.
+	if !strings.Contains(out, "Valheim build: 200 -> 300") {
+		t.Fatalf("update did not report the build change: %s", out)
+	}
+	if strings.Contains(out, `"branches"`) || !strings.Contains(out, "Success! App '896660' fully installed.") {
+		t.Fatalf("app info dump not filtered from SteamCMD output: %s", out)
+	}
+	if !strings.Contains(f.read(filepath.Join(f.data, "runtime", "steamcmd.log")), `"branches"`) {
+		t.Fatal("steamcmd.log lost the app info dump")
+	}
 	trace := f.read(filepath.Join(f.root, "trace"))
 	if strings.Count(trace, "<run>") != 2 || strings.Count(trace, "<create>") != 2 {
 		t.Fatalf("unchanged image skipped Steam update: %s", trace)
 	}
+	// Update also validates: each updater lacks the old depot manifest.
+	if strings.Count(trace, "<+app_info_print><896660><+app_update><896660><validate><+quit>") != 2 {
+		t.Fatalf("install and update did not both validate: %s", trace)
+	}
 	for _, arg := range []string{
-		"<+force_install_dir></data/server><+login><anonymous><+app_info_update><1><+app_update><896660>",
-		"<+app_update><896660><validate><+quit>", "<+app_update><896660><+quit>",
+		"<+force_install_dir></data/server><+login><anonymous><+app_info_update><1><+app_info_print><896660>",
 		"<--timeout><3300>", "<--userns=keep-id:uid=1000,gid=1000>", "<--user><1000:1000>",
 		"<--restart=no>", "<2456:2456/udp>", "<2457:2457/udp>", "<-public><0>",
 		"<--entrypoint></usr/bin/tini>", "<" + f.data + ":/data:Z>",
@@ -499,7 +533,7 @@ func TestValheimInvalidLaunchOptionsFailBeforeMutation(t *testing.T) {
 }
 
 func TestValheimFailedUpdatesBlockStart(t *testing.T) {
-	for _, flag := range []string{"pull-fail", "update-fail", "no-success", "no-binary", "create-fail"} {
+	for _, flag := range []string{"pull-fail", "update-fail", "no-success", "no-binary", "no-app-info", "wrong-build", "create-fail"} {
 		t.Run(flag, func(t *testing.T) {
 			f := newValheimFixture(t)
 			f.write(filepath.Join(f.root, "game"), "exited")
@@ -515,6 +549,28 @@ func TestValheimFailedUpdatesBlockStart(t *testing.T) {
 			f.success("start")
 		})
 	}
+}
+
+// SteamCMD has reported success for an outdated install, which left clients
+// with an incompatible version after Update.
+func TestValheimRejectsOutdatedBuild(t *testing.T) {
+	f := newValheimFixture(t)
+	f.success("install")
+	f.write(filepath.Join(f.root, "public-build"), "300")
+	f.flag("wrong-build")
+	if out := f.failure("update"); !strings.Contains(out, "installed build 100 is not the current public build 300") {
+		t.Fatalf("outdated build was accepted: %s", out)
+	}
+	if out := f.failure("start"); !strings.Contains(out, "incomplete install/update") {
+		t.Fatalf("outdated install can start: %s", out)
+	}
+	if err := os.Remove(filepath.Join(f.root, "wrong-build")); err != nil {
+		t.Fatal(err)
+	}
+	if out := f.success("update"); !strings.Contains(out, "Valheim build: 100 -> 300") {
+		t.Fatalf("retry did not update: %s", out)
+	}
+	f.success("start")
 }
 
 func TestValheimInterruptedUpdaterPreventsOverlap(t *testing.T) {
@@ -594,6 +650,22 @@ func TestValheimPrivatePathsAndPassword(t *testing.T) {
 	f.failure("install")
 	if got := f.read(outside); got != "preserve" {
 		t.Fatal("overwrote symlink target")
+	}
+	if err := os.Remove(filepath.Join(f.data, "runtime", "steamcmd.log")); err != nil {
+		t.Fatal(err)
+	}
+	steamapps := filepath.Join(f.data, "server", "steamapps")
+	if err := os.MkdirAll(steamapps, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(steamapps, "appmanifest_896660.acf")); err != nil {
+		t.Fatal(err)
+	}
+	if out := f.failure("install"); !strings.Contains(out, "symlink") {
+		t.Fatalf("accepted a symlinked Steam manifest: %s", out)
+	}
+	if got := f.read(outside); got != "preserve" {
+		t.Fatal("overwrote manifest symlink target")
 	}
 }
 

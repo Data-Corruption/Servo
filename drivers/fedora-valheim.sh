@@ -207,6 +207,23 @@ start_failed() {
   fail "$@"
 }
 
+# Prints the installed Steam build, or nothing before the first install.
+installed_build() {
+  [ ! -L "$MANIFEST" ] || fail "symlink where a file is required: $MANIFEST"
+  [ -e "$MANIFEST" ] || return 0
+  [ -f "$MANIFEST" ] || fail "not a regular file: $MANIFEST"
+  awk '$1 == "\"buildid\"" { gsub(/"/, "", $2); print $2; exit }' "$MANIFEST" || fail "cannot read Steam app manifest: $MANIFEST"
+}
+
+# Prints the public build from SteamCMD's app info dump. Depot manifests have
+# "public" keys too; only the branch under "branches" names the build.
+public_build() {
+  awk '$1 == "\"branches\"" { b = 1; next }
+    b && $1 == "\"public\"" { p = 1; next }
+    p && $1 == "}" { exit }
+    p && $1 == "\"buildid\"" { gsub(/"/, "", $2); print $2; exit }' "$DATA/runtime/steamcmd.log" || fail "cannot read SteamCMD log"
+}
+
 # describe/deps must also work before Servo has created any data directories.
 case "${1:-}" in
 describe)
@@ -232,6 +249,7 @@ case "$DATA" in /*) ;; *) fail "SERVO_DATA_DIR must be absolute" ;; esac
 [ "$DATA" != / ] || fail "SERVO_DATA_DIR must not be the filesystem root"
 UPDATER="$CONTAINER-updater"
 GAME_LOG="$DATA/runtime/valheim.log"
+MANIFEST="$DATA/server/steamapps/appmanifest_896660.acf"
 if [ -e "$DATA" ] || [ -L "$DATA" ]; then private_dir "$DATA"; fi
 
 case "$1" in
@@ -295,12 +313,18 @@ install|update)
   inspect_owned "$UPDATER" updater
   [ "$STATE" != running ] || fail "an updater is still running"
   if [ "$STATE" != missing ]; then podman rm "$CID" || fail "cannot remove stopped updater"; fi
-  set -- "$1"
-  [ "$1" != install ] || set -- "$1" validate
+  previous=$(installed_build) || exit 1
+  # Each updater starts with an empty Steam cache. An in-place update needs
+  # the installed build's depot manifest from that cache, and Steam denies
+  # superseded manifests ("state is 0x6 after update job"). Without the app
+  # manifest, SteamCMD validates the existing files against the current build
+  # and downloads only what differs. Files a newer build drops stay behind.
+  if [ -e "$MANIFEST" ]; then rm "$MANIFEST" || fail "cannot remove Steam app manifest"; fi
   # Keep the updater container after exit until success has been checked. A
   # cancelled caller cannot silently authorize Start, even if SteamCMD finishes.
-  # Each updater has a fresh Steam cache. Refresh app metadata after login so
-  # app_update does not fail with "Missing configuration" on a cold cache.
+  # Straight after app_info_update, app_update can start before the refreshed
+  # metadata arrives and fail ("Missing configuration", "Timed out waiting for
+  # update to start"). Printing the app info first waits for the metadata.
   echo "checking/downloading Valheim with SteamCMD ..."
   update_code=0
   podman run --name "$UPDATER" \
@@ -311,12 +335,20 @@ install|update)
     "$image_id" /home/steam/steamcmd/steamcmd.sh \
     +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
     +force_install_dir /data/server +login anonymous +app_info_update 1 \
-    +app_update 896660 ${2:+"$2"} +quit \
+    +app_info_print 896660 +app_update 896660 validate +quit \
     > "$DATA/runtime/steamcmd.log" 2>&1 || update_code=$?
-  cat "$DATA/runtime/steamcmd.log"
+  # The log keeps the long app info dump for diagnosis; the output omits it.
+  sed '/AppID : 896660,/,/^}/d' "$DATA/runtime/steamcmd.log"
   [ "$update_code" -eq 0 ] || fail "SteamCMD failed; rerun Install or Update"
-  grep -E "Success! App '896660' (fully installed|already up to date)\\." "$DATA/runtime/steamcmd.log" >/dev/null || fail "SteamCMD did not confirm success"
+  grep -F "Success! App '896660' fully installed." "$DATA/runtime/steamcmd.log" >/dev/null || fail "SteamCMD did not confirm success"
   [ ! -L "$DATA/server/valheim_server.x86_64" ] && [ -f "$DATA/server/valheim_server.x86_64" ] && [ -x "$DATA/server/valheim_server.x86_64" ] || fail "Valheim executable is missing"
+  # SteamCMD has reported "already up to date" for an outdated install, so
+  # its success line is not proof. Check the build Steam reported this run.
+  current=$(public_build) || exit 1
+  installed=$(installed_build) || exit 1
+  case "$current" in ''|*[!0-9]*) fail "SteamCMD did not report the current public build" ;; esac
+  [ "$installed" = "$current" ] || fail "SteamCMD reported success, but installed build ${installed:-unknown} is not the current public build $current; rerun Update"
+  echo "Valheim build: ${previous:-none} -> $installed"
   require_stopped
   if [ "$STATE" != missing ]; then podman rm "$CID" || fail "cannot remove updater"; fi
   inspect_owned "$CONTAINER" game
